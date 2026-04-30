@@ -40,6 +40,8 @@ jobs:
     steps:
     - name: Checkout source code
       uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
 
     # --- sakisu: vivo vermagic injection (only when inputs.vivo == true) ---
     # vivo official kernels (GKI) require the vermagic string to contain "vivo",

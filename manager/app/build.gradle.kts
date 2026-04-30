@@ -124,7 +124,11 @@ android {
         versionName = managerVersionName
 
         val isPrBuild = project.findProperty("IS_PR_BUILD")?.toString()?.toBoolean() ?: false
+        val trustedManagerCertSize = project.findProperty("TRUSTED_MANAGER_CERT_SIZE")?.toString() ?: ""
+        val trustedManagerCertHash = project.findProperty("TRUSTED_MANAGER_CERT_HASH")?.toString() ?: ""
         buildConfigField("boolean", "IS_PR_BUILD", isPrBuild.toString())
+        buildConfigField("String", "TRUSTED_MANAGER_CERT_SIZE", "\"$trustedManagerCertSize\"")
+        buildConfigField("String", "TRUSTED_MANAGER_CERT_HASH", "\"$trustedManagerCertHash\"")
 
         externalNativeBuild {
             cmake {

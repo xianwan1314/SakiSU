@@ -198,6 +198,27 @@ jobs:
             } >> gradle.properties
           fi
 
+      - name: Export trusted manager cert metadata
+        if: ${{ github.event_name == 'workflow_dispatch' || ( github.event_name != 'pull_request') || github.ref_type == 'tag' }}
+        env:
+          KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+        run: |
+          STORE_FILE=$(grep '^KEYSTORE_FILE=' gradle.properties | tail -n1 | cut -d= -f2 | tr -d "'\"")
+          STORE_PASS=$(grep '^KEYSTORE_PASSWORD=' gradle.properties | tail -n1 | cut -d= -f2 | tr -d "'\"")
+          KEY_ALIAS=$(grep '^KEY_ALIAS=' gradle.properties | tail -n1 | cut -d= -f2 | tr -d "'\"")
+          keytool -exportcert \
+            -alias "$KEY_ALIAS" \
+            -keystore "$STORE_FILE" \
+            -storepass "$STORE_PASS" \
+            -file manager-cert.der
+          SIZE_DEC=$(stat -c%s manager-cert.der)
+          SIZE_HEX=$(printf '0x%04x' "$SIZE_DEC")
+          HASH=$(sha256sum manager-cert.der | awk '{print $1}')
+          {
+            echo TRUSTED_MANAGER_CERT_SIZE="$SIZE_HEX"
+            echo TRUSTED_MANAGER_CERT_HASH="$HASH"
+          } >> gradle.properties
+
       - name: Write PR key
         if: github.event_name == 'pull_request'
         env:
@@ -211,6 +232,25 @@ jobs:
             echo KEY_ALIAS='pr-key'
             echo KEY_PASSWORD="$PR_KEY_PASSWORD"
             echo KEYSTORE_FILE='pr-key.jks'
+          } >> gradle.properties
+
+      - name: Export trusted manager cert metadata for PR build
+        if: github.event_name == 'pull_request'
+        run: |
+          STORE_FILE=$(grep '^KEYSTORE_FILE=' gradle.properties | tail -n1 | cut -d= -f2 | tr -d "'\"")
+          STORE_PASS=$(grep '^KEYSTORE_PASSWORD=' gradle.properties | tail -n1 | cut -d= -f2 | tr -d "'\"")
+          KEY_ALIAS=$(grep '^KEY_ALIAS=' gradle.properties | tail -n1 | cut -d= -f2 | tr -d "'\"")
+          keytool -exportcert \
+            -alias "$KEY_ALIAS" \
+            -keystore "$STORE_FILE" \
+            -storepass "$STORE_PASS" \
+            -file manager-cert.der
+          SIZE_DEC=$(stat -c%s manager-cert.der)
+          SIZE_HEX=$(printf '0x%04x' "$SIZE_DEC")
+          HASH=$(sha256sum manager-cert.der | awk '{print $1}')
+          {
+            echo TRUSTED_MANAGER_CERT_SIZE="$SIZE_HEX"
+            echo TRUSTED_MANAGER_CERT_HASH="$HASH"
           } >> gradle.properties
       
       - name: Setup Java

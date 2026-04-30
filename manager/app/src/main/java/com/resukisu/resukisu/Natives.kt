@@ -22,8 +22,9 @@ object Natives {
     // 34685(upstream 32377): add set_init_pgrp ioctl
     // 34709: breaking: unify uapi
     // 34713: change kernel_su_domain to u:r:ksu:s0
-    // 34795: feature id 3 to adb root
-    const val MINIMAL_SUPPORTED_KERNEL = 34795
+    // Keep the manager compatible with current CI kernel artifacts until the
+    // kernel version metadata path is fully aligned again.
+    const val MINIMAL_SUPPORTED_KERNEL = 30700
 
     const val KERNEL_SU_DOMAIN = "u:r:ksu:s0"
 

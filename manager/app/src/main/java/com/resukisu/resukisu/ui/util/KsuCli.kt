@@ -27,6 +27,17 @@ import java.util.Properties
  * @date 2023/1/1.
  */
 private const val TAG = "KsuCli"
+private const val OFFICIAL_MANAGER_SIGNATURE = "size: 0x377, hash: d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64"
+
+private fun trustedManagerSignatures(): Set<String> {
+    val signatures = linkedSetOf(OFFICIAL_MANAGER_SIGNATURE)
+    val buildCertSize = BuildConfig.TRUSTED_MANAGER_CERT_SIZE.trim()
+    val buildCertHash = BuildConfig.TRUSTED_MANAGER_CERT_HASH.trim()
+    if (buildCertSize.isNotEmpty() && buildCertHash.isNotEmpty()) {
+        signatures += "size: $buildCertSize, hash: $buildCertHash"
+    }
+    return signatures
+}
 
 private fun isVivoFamilyDevice(): Boolean {
     val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
@@ -117,8 +128,7 @@ suspend fun isOfficialSignature(): Boolean = withContext(Dispatchers.IO) {
     val out = shell.newJob()
         .add("${getKsuDaemonPath()} debug get-sign ${ksuApp.packageResourcePath}")
         .to(ArrayList<String>(), null).exec().out
-    out.firstOrNull()?.trim()
-        .orEmpty() == "size: 0x377, hash: d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64"
+    trustedManagerSignatures().contains(out.firstOrNull()?.trim().orEmpty())
 }
 
 suspend fun getFeatureStatus(feature: String): String = withContext(Dispatchers.IO) {

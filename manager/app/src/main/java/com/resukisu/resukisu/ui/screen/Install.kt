@@ -260,7 +260,15 @@ fun InstallScreen(
         value = getCurrentKmi()
     }
 
-    val selectKmiDialog = rememberSelectKmiDialog { kmi ->
+    val preferVivoKmi = enableVivoPatch && partitionsState.getOrNull(partitionSelectionIndex) != "vendor_boot"
+
+    val selectKmiDialog = rememberSelectKmiDialog(preferredKmi = if (preferVivoKmi) {
+        currentKmi.takeIf { it.isNotBlank() }?.let { base ->
+            if (base.endsWith("_vivo")) base else "${base}_vivo"
+        }
+    } else {
+        currentKmi.takeIf { it.isNotBlank() }
+    }) { kmi ->
         kmi?.let {
             lkmSelection = LkmSelection.KmiString(it)
             onInstall()
@@ -1070,18 +1078,37 @@ private fun KpmPatchOptionGroup(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun rememberSelectKmiDialog(onSelected: (String?) -> Unit): DialogHandle {
+fun rememberSelectKmiDialog(preferredKmi: String? = null, onSelected: (String?) -> Unit): DialogHandle {
     return rememberCustomDialog { dismiss ->
         val supportedKmi by produceState(initialValue = emptyList()) {
             value = getSupportedKmis()
         }
-        val options = supportedKmi.map { value ->
+        val orderedKmis = remember(supportedKmi, preferredKmi) {
+            if (preferredKmi.isNullOrBlank()) {
+                supportedKmi
+            } else {
+                val preferred = supportedKmi.firstOrNull { it == preferredKmi }
+                val fallback = if (preferredKmi.endsWith("_vivo")) preferredKmi.removeSuffix("_vivo") else preferredKmi
+                val secondary = supportedKmi.firstOrNull { it == fallback }
+                buildList {
+                    preferred?.let { add(it) }
+                    if (secondary != null && secondary != preferred) add(secondary)
+                    addAll(supportedKmi.filter { it != preferred && it != secondary })
+                }
+            }
+        }
+        val options = orderedKmis.map { value ->
             ListOption(
                 titleText = value
             )
         }
 
-        var selection by remember { mutableStateOf<String?>(null) }
+        var selection by remember(orderedKmis, preferredKmi) {
+            mutableStateOf(
+                orderedKmis.firstOrNull { it == preferredKmi }
+                    ?: orderedKmis.firstOrNull()
+            )
+        }
 
         MaterialTheme(
             colorScheme = MaterialTheme.colorScheme.copy(
