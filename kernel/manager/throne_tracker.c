@@ -315,11 +315,7 @@ void do_track_throne(void *data)
     for (;;) {
         struct uid_data *data = NULL;
         ssize_t count = ksu_kernel_read_compat(fp, &chr, sizeof(chr), &pos);
-        const char *delim = " \t";
-        char *package = NULL;
-        char *tmp = NULL;
-        char *uid = NULL;
-        u32 res;
+        u32 res = 0;
 
         if (count != sizeof(chr))
             break;
@@ -338,34 +334,15 @@ void do_track_throne(void *data)
             goto out;
         }
 
-        tmp = buf;
-
-        package = strsep(&tmp, delim);
-        uid = strsep(&tmp, delim);
-        if (!uid || !package) {
-            pr_warn("update_uid: skip malformed line in packages.list\n");
+        // Use sscanf so any amount of whitespace (spaces, tabs) between fields
+        // is handled correctly. strsep treats each delimiter char individually,
+        // causing it to return an empty token when consecutive spaces are present.
+        if (sscanf(buf, "%255s %u", data->package, &res) != 2) {
             kfree(data);
             line_start = pos;
             continue;
         }
-
-        uid = strim(uid);
-        if (kstrtou32(uid, 10, &res)) {
-            char uid_prefix[16] = { 0 };
-            size_t i = 0;
-            while (uid[i] >= '0' && uid[i] <= '9' && i < sizeof(uid_prefix) - 1) {
-                uid_prefix[i] = uid[i];
-                i++;
-            }
-            if (i == 0 || kstrtou32(uid_prefix, 10, &res)) {
-                pr_warn("update_uid: skip invalid uid in packages.list\n");
-                kfree(data);
-                line_start = pos;
-                continue;
-            }
-        }
         data->uid = res;
-        strncpy(data->package, package, KSU_MAX_PACKAGE_NAME);
         list_add_tail(&data->list, &uid_list);
 
         u16 appid = res % PER_USER_RANGE;
