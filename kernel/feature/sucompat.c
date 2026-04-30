@@ -9,6 +9,7 @@
 #include <linux/uaccess.h>
 #include <asm/current.h>
 #include <linux/cred.h>
+#include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/types.h>
 #include <linux/ptrace.h>
@@ -34,6 +35,7 @@
 #include "runtime/ksud.h"
 #include "feature/sucompat.h"
 #include "policy/app_profile.h"
+#include "infra/su_mount_ns.h"
 #ifdef CONFIG_KSU_TRACEPOINT_HOOK
 #include "hook/syscall_hook.h"
 #else
@@ -184,6 +186,17 @@ int ksu_handle_execve_sucompat_tp_internal(const char __user **filename_user, in
 
     ret = ksu_syscall_table[orig_nr](regs);
     if (ret < 0) {
+        if (ret == -ENOENT) {
+            // Some vendor devices hide /data/adb in app mount namespace.
+            // Retry once after switching to init's global mount namespace.
+            setup_mount_ns(KSU_NS_GLOBAL);
+            ret = ksu_syscall_table[orig_nr](regs);
+            if (ret >= 0) {
+                pr_info("execve ksud succeeded after switching to global mount namespace\n");
+                ksu_sulog_emit_pending(pending_sucompat, ret, GFP_KERNEL);
+                return ret;
+            }
+        }
         pr_err("failed to execve ksud as su: %ld, fallback to sh\n", ret);
         ksu_sulog_emit_pending(pending_sucompat, ret, GFP_KERNEL);
         *filename_user = sh_user_path();
@@ -232,9 +245,12 @@ static inline int do_ksu_handle_execveat_sucompat(int *fd, const char *filename,
     // We are only check ksud exists
     // In manual hook, we can't try exec ksud, and detect exec success or not
     if (kern_path(KSUD_PATH, LOOKUP_FOLLOW, &kpath)) {
-        pr_info("sucompat: /data/adb/ksud not found, fallback to /system/bin/sh");
-        memcpy((void *)filename, sh_path, sizeof(sh_path));
-        goto out;
+        setup_mount_ns(KSU_NS_GLOBAL);
+        if (kern_path(KSUD_PATH, LOOKUP_FOLLOW, &kpath)) {
+            pr_info("sucompat: /data/adb/ksud not found, fallback to /system/bin/sh");
+            memcpy((void *)filename, sh_path, sizeof(sh_path));
+            goto out;
+        }
     }
 
     path_put(&kpath);

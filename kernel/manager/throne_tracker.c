@@ -343,13 +343,17 @@ void do_track_throne(void *data)
         package = strsep(&tmp, delim);
         uid = strsep(&tmp, delim);
         if (!uid || !package) {
-            pr_err("update_uid: package or uid is NULL!\n");
-            break;
+            pr_warn("update_uid: skip malformed line in packages.list\n");
+            kfree(data);
+            line_start = pos;
+            continue;
         }
 
         if (kstrtou32(uid, 10, &res)) {
-            pr_err("update_uid: uid parse err\n");
-            break;
+            pr_warn("update_uid: skip invalid uid in packages.list\n");
+            kfree(data);
+            line_start = pos;
+            continue;
         }
         data->uid = res;
         strncpy(data->package, package, KSU_MAX_PACKAGE_NAME);

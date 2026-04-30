@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -131,6 +132,14 @@ fun InstallScreen(
     var showSlotSelectionDialog by remember { mutableStateOf(false) }
     var showKpmPatchDialog by remember { mutableStateOf(false) }
     var tempKernelUri by remember { mutableStateOf<Uri?>(null) }
+    var enableVivoPatch by remember {
+        mutableStateOf(
+            Build.MANUFACTURER.orEmpty().contains("vivo", ignoreCase = true) ||
+                Build.MANUFACTURER.orEmpty().contains("iqoo", ignoreCase = true) ||
+                Build.BRAND.orEmpty().contains("vivo", ignoreCase = true) ||
+                Build.BRAND.orEmpty().contains("iqoo", ignoreCase = true)
+        )
+    }
 
     val kernelVersion = getKernelVersion()
     val isGKI = kernelVersion.isGKI()
@@ -208,7 +217,8 @@ fun InstallScreen(
                         boot = if (method is InstallMethod.SelectFile) method.uri else null,
                         lkm = lkmSelection,
                         ota = isOta,
-                        partition = partitionSelection
+                        partition = partitionSelection,
+                        vivoPatch = enableVivoPatch,
                     )
                     navigator.push(Route.Flash(flashIt))
                 }
@@ -392,6 +402,33 @@ fun InstallScreen(
                                 },
                             )
                         }
+                    }
+                }
+            }
+
+            if (isGKI) {
+                ElevatedCard(
+                    colors = getCardColors(MaterialTheme.colorScheme.surfaceVariant),
+                    elevation = getCardElevation(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    SettingsBaseWidget(
+                        title = "vivo修补 (rmvr)",
+                        description = if (enableVivoPatch) {
+                            "已启用：清理 vendor_boot 中 vr.ko 及 modules.load / modules.dep / modules.softdep / modules.load.recovery 引用。直刷/刷到另一槽位时会额外处理 vendor_boot。"
+                        } else {
+                            "可选：用于 vivo/iQOO 设备，避免 vr.ko 与 KSU 冲突。"
+                        },
+                        icon = Icons.Default.Security,
+                        onClick = { enableVivoPatch = !enableVivoPatch },
+                    ) {
+                        Text(
+                            text = if (enableVivoPatch) "ON" else "OFF",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (enableVivoPatch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

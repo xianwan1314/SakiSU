@@ -2,6 +2,7 @@ package com.resukisu.resukisu.ui.util
 
 import android.annotation.SuppressLint
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.os.Parcelable
 import android.os.SystemClock
@@ -26,6 +27,13 @@ import java.util.Properties
  * @date 2023/1/1.
  */
 private const val TAG = "KsuCli"
+
+private fun isVivoFamilyDevice(): Boolean {
+    val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
+    val brand = Build.BRAND.orEmpty().lowercase()
+    return manufacturer.contains("vivo") || manufacturer.contains("iqoo") ||
+        brand.contains("vivo") || brand.contains("iqoo")
+}
 
 private fun getKsuDaemonPath(): String {
     return ksuApp.applicationInfo.nativeLibraryDir + File.separator + "libksud.so"
@@ -288,6 +296,7 @@ fun installBoot(
     lkm: LkmSelection,
     ota: Boolean,
     partition: String?,
+    vivoPatch: Boolean,
     onFinish: (Boolean, Int) -> Unit,
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit,
@@ -305,7 +314,7 @@ fun installBoot(
         }
     }
 
-    var cmd = "boot-patch"
+    var cmd = if (vivoPatch && bootFile != null) "boot-patch-vivo" else "boot-patch"
 
     cmd += if (bootFile == null) {
         // no boot.img, use -f to force install
@@ -346,24 +355,45 @@ fun installBoot(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     cmd += " -o $downloadsDir"
 
+    if (vivoPatch && bootFile != null) {
+        cmd += " --out-name kernelsu_patched_rmvr_${System.currentTimeMillis()}.img"
+    }
+
     partition?.let { part ->
         cmd += " --partition $part"
+    }
+
+    if (vivoPatch && bootFile != null && !cmd.contains("--partition")) {
+        cmd += " --partition vendor_boot"
     }
 
     val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
     Log.i("KernelSU", "install boot result: ${result.isSuccess}")
 
+    val finalResult = if (result.isSuccess && vivoPatch && bootFile == null) {
+        var vendorCmd = "boot-patch-vivo -f --no-install"
+        if (ota) {
+            vendorCmd += " -u"
+        }
+        vendorCmd += " --partition vendor_boot"
+        val vendorResult = flashWithIO("${getKsuDaemonPath()} $vendorCmd", onStdout, onStderr)
+        Log.i("KernelSU", "install vendor boot rmvr result: ${vendorResult.isSuccess}")
+        vendorResult
+    } else {
+        result
+    }
+
     bootFile?.delete()
     lkmFile?.delete()
 
     // if boot uri is empty, it is direct install, when success, we should show reboot button
-    onFinish(bootUri == null && result.isSuccess, result.code)
+    onFinish(bootUri == null && finalResult.isSuccess, finalResult.code)
 
-    if (bootUri == null && result.isSuccess) {
+    if (bootUri == null && finalResult.isSuccess) {
         install()
     }
 
-    return result.isSuccess
+    return finalResult.isSuccess
 }
 
 fun reboot(reason: String = "") {

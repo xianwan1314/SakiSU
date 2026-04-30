@@ -406,6 +406,124 @@ pub struct BootPatchArgs {
     /// Do not (re-)install kernelsu, only modify configs (allow_shell, etc.)
     #[arg(long, default_value = "false")]
     no_install: bool,
+
+    /// Remove vendor ramdisk modules by name (repeatable), and clean references from
+    /// modules.load/modules.dep/modules.softdep/modules.load.recovery.
+    #[arg(long = "remove-module", value_name = "NAME.ko", num_args = 0..)]
+    pub remove_module: Vec<String>,
+}
+
+fn normalize_module_name(name: &str) -> String {
+    let trimmed = name.trim().trim_matches('/');
+    let basename = trimmed.rsplit('/').next().unwrap_or(trimmed);
+    basename.to_string()
+}
+
+fn remove_module_from_index(cpio: &mut Cpio, index_path: &str, module_name: &str) -> Result<()> {
+    let Some(entry) = cpio.entry_by_name(index_path) else {
+        return Ok(());
+    };
+
+    let data = entry
+        .data()
+        .ok_or_else(|| anyhow!("Invalid cpio entry for {index_path}"))?
+        .to_vec();
+    let text = String::from_utf8_lossy(&data);
+
+    let module_stem = module_name.trim_end_matches(".ko");
+    let mut changed = false;
+    let mut kept = Vec::<String>::new();
+
+    for line in text.lines() {
+        let l = line.trim();
+        if l.is_empty() {
+            continue;
+        }
+
+        let refs_by_path = l.contains(module_name) || l.contains(&format!("/{module_name}"));
+        let refs_by_stem = l.contains(&format!(" {module_stem} "))
+            || l.ends_with(&format!(" {module_stem}"))
+            || l.starts_with(&format!("{module_stem} "))
+            || l.starts_with(&format!("softdep {module_stem} "));
+
+        if refs_by_path || refs_by_stem {
+            changed = true;
+            continue;
+        }
+
+        kept.push(line.to_string());
+    }
+
+    if !changed {
+        return Ok(());
+    }
+
+    println!("- Cleaning reference in {index_path} for {module_name}");
+
+    let mut rebuilt = kept.join("\n");
+    if !rebuilt.is_empty() {
+        rebuilt.push('\n');
+    }
+
+    cpio.rm(index_path, false);
+    cpio.add(
+        index_path,
+        CpioEntry::regular(0o644, Box::new(rebuilt.into_bytes())),
+    )?;
+    Ok(())
+}
+
+fn remove_vendor_modules(cpio: &mut Cpio, remove_module: &[String]) -> Result<()> {
+    if remove_module.is_empty() {
+        return Ok(());
+    }
+
+    let module_roots = ["lib/modules", "lib/modules/6.1-gki"];
+    let index_files = [
+        "modules.load",
+        "modules.dep",
+        "modules.softdep",
+        "modules.load.recovery",
+    ];
+
+    for raw_name in remove_module {
+        let module_name = normalize_module_name(raw_name);
+        if module_name.is_empty() {
+            continue;
+        }
+
+        for root in module_roots {
+            let module_path = format!("{root}/{module_name}");
+            if cpio.exists(&module_path) {
+                println!("- Removing vendor module {module_path}");
+                cpio.rm(&module_path, false);
+            }
+
+            for idx in index_files {
+                let idx_path = format!("{root}/{idx}");
+                remove_module_from_index(cpio, &idx_path, &module_name)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn patch_vivo(mut args: BootPatchArgs) -> Result<()> {
+    if !args
+        .remove_module
+        .iter()
+        .any(|x| normalize_module_name(x) == "vr.ko")
+    {
+        args.remove_module.push("vr.ko".to_string());
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        args.partition = Some("vendor_boot".to_string());
+    }
+
+    patch(args)
 }
 
 pub fn patch(args: BootPatchArgs) -> Result<()> {
@@ -422,6 +540,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             enable_adbd,
             adb_debug_prop,
             no_install,
+            remove_module,
             #[cfg(target_os = "android")]
             ota,
             flash,
@@ -641,6 +760,8 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                     cpio.rm("force_debuggable", false);
                 }
             }
+
+            remove_vendor_modules(&mut cpio, &remove_module)?;
 
             let mut new_cpio = Vec::<u8>::new();
             cpio.dump(&mut new_cpio)?;
