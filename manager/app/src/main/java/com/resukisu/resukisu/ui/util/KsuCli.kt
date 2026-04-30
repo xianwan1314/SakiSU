@@ -29,12 +29,28 @@ import java.util.Properties
 private const val TAG = "KsuCli"
 private const val OFFICIAL_MANAGER_SIGNATURE = "size: 0x377, hash: d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64"
 
+private fun normalizeManagerSignature(signature: String): String {
+    val trimmed = signature.trim()
+    if (trimmed.isEmpty()) return ""
+
+    val sizeMatch = Regex("size:\\s*0x([0-9a-fA-F]+)").find(trimmed)
+    val hashMatch = Regex("hash:\\s*([0-9a-fA-F]{64})").find(trimmed)
+    val size = sizeMatch?.groupValues?.getOrNull(1)?.toIntOrNull(16)
+    val hash = hashMatch?.groupValues?.getOrNull(1)?.lowercase()
+
+    return if (size != null && hash != null) {
+        "size:$size hash:$hash"
+    } else {
+        trimmed.lowercase().replace(" ", "")
+    }
+}
+
 private fun trustedManagerSignatures(): Set<String> {
-    val signatures = linkedSetOf(OFFICIAL_MANAGER_SIGNATURE)
+    val signatures = linkedSetOf(normalizeManagerSignature(OFFICIAL_MANAGER_SIGNATURE))
     val buildCertSize = BuildConfig.TRUSTED_MANAGER_CERT_SIZE.trim()
     val buildCertHash = BuildConfig.TRUSTED_MANAGER_CERT_HASH.trim()
     if (buildCertSize.isNotEmpty() && buildCertHash.isNotEmpty()) {
-        signatures += "size: $buildCertSize, hash: $buildCertHash"
+        signatures += normalizeManagerSignature("size: $buildCertSize, hash: $buildCertHash")
     }
     return signatures
 }
@@ -128,7 +144,7 @@ suspend fun isOfficialSignature(): Boolean = withContext(Dispatchers.IO) {
     val out = shell.newJob()
         .add("${getKsuDaemonPath()} debug get-sign ${ksuApp.packageResourcePath}")
         .to(ArrayList<String>(), null).exec().out
-    trustedManagerSignatures().contains(out.firstOrNull()?.trim().orEmpty())
+    trustedManagerSignatures().contains(normalizeManagerSignature(out.firstOrNull().orEmpty()))
 }
 
 suspend fun getFeatureStatus(feature: String): String = withContext(Dispatchers.IO) {

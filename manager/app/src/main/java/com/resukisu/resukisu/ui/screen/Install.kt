@@ -1126,6 +1126,8 @@ fun rememberSelectKmiDialog(preferredKmi: String? = null, onSelected: (String?) 
                 options = options,
             ) { _, option ->
                 selection = option.titleText
+                onSelected(selection)
+                dismiss()
             })
         }
     }
