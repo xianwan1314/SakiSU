@@ -359,6 +359,23 @@ void do_track_throne(void *data)
     if (prune_only)
         goto prune;
 
+    // Do not rely only on app-id bitmap delta: when manager authorization is
+    // lost but no app install/uninstall happens, we still must re-scan manager.
+    // Check whether any currently registered manager uid exists in packages.list.
+    {
+        bool manager_uid_seen = false;
+        list_for_each_entry (np, &uid_list, list) {
+            if (ksu_is_manager_uid(np->uid)) {
+                manager_uid_seen = true;
+                break;
+            }
+        }
+        if (!manager_uid_seen) {
+            pr_info("No registered manager uid found in packages.list, force searching manager\n");
+            need_search = true;
+        }
+    }
+
     // check uninstalled is manager, and
     // run search_manager when new application installed
     mutex_lock(&app_list_lock);
