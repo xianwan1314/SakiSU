@@ -314,7 +314,8 @@ fun installBoot(
         }
     }
 
-    var cmd = if (vivoPatch && bootFile != null) "boot-patch-vivo" else "boot-patch"
+    val useVivoRmvr = vivoPatch && partition == "vendor_boot"
+    var cmd = if (useVivoRmvr) "boot-patch-vivo" else "boot-patch"
 
     cmd += if (bootFile == null) {
         // no boot.img, use -f to force install
@@ -342,7 +343,12 @@ fun installBoot(
         }
 
         is LkmSelection.KmiString -> {
-            cmd += " --kmi ${lkm.value}"
+            val selectedKmi = if (vivoPatch && !useVivoRmvr && !lkm.value.endsWith("_vivo")) {
+                "${lkm.value}_vivo"
+            } else {
+                lkm.value
+            }
+            cmd += " --kmi $selectedKmi"
         }
 
         LkmSelection.KmiNone -> {
@@ -355,7 +361,7 @@ fun installBoot(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     cmd += " -o $downloadsDir"
 
-    if (vivoPatch && bootFile != null) {
+    if (useVivoRmvr && bootFile != null) {
         cmd += " --out-name kernelsu_patched_rmvr_${System.currentTimeMillis()}.img"
     }
 
@@ -363,37 +369,20 @@ fun installBoot(
         cmd += " --partition $part"
     }
 
-    if (vivoPatch && bootFile != null && !cmd.contains("--partition")) {
-        cmd += " --partition vendor_boot"
-    }
-
     val result = flashWithIO("${getKsuDaemonPath()} $cmd", onStdout, onStderr)
     Log.i("KernelSU", "install boot result: ${result.isSuccess}")
-
-    val finalResult = if (result.isSuccess && vivoPatch && bootFile == null) {
-        var vendorCmd = "boot-patch-vivo -f --no-install"
-        if (ota) {
-            vendorCmd += " -u"
-        }
-        vendorCmd += " --partition vendor_boot"
-        val vendorResult = flashWithIO("${getKsuDaemonPath()} $vendorCmd", onStdout, onStderr)
-        Log.i("KernelSU", "install vendor boot rmvr result: ${vendorResult.isSuccess}")
-        vendorResult
-    } else {
-        result
-    }
 
     bootFile?.delete()
     lkmFile?.delete()
 
     // if boot uri is empty, it is direct install, when success, we should show reboot button
-    onFinish(bootUri == null && finalResult.isSuccess, finalResult.code)
+    onFinish(bootUri == null && result.isSuccess, result.code)
 
-    if (bootUri == null && finalResult.isSuccess) {
+    if (bootUri == null && result.isSuccess) {
         install()
     }
 
-    return finalResult.isSuccess
+    return result.isSuccess
 }
 
 fun reboot(reason: String = "") {

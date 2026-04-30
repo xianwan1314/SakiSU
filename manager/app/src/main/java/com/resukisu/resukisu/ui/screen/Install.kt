@@ -415,11 +415,11 @@ fun InstallScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     SettingsBaseWidget(
-                        title = "vivo修补 (rmvr)",
+                        title = "vivo修补",
                         description = if (enableVivoPatch) {
-                            "已启用：清理 vendor_boot 中 vr.ko 及 modules.load / modules.dep / modules.softdep / modules.load.recovery 引用。直刷/刷到另一槽位时会额外处理 vendor_boot。"
+                            "已启用：选择 vendor_boot 时执行 rmvr 清理；选择 init_boot/boot 时自动使用 _vivo KMI。"
                         } else {
-                            "可选：用于 vivo/iQOO 设备，避免 vr.ko 与 KSU 冲突。"
+                            "关闭：不启用 rmvr，也不自动改用 _vivo KMI。"
                         },
                         icon = Icons.Default.Security,
                         onClick = { enableVivoPatch = !enableVivoPatch },
