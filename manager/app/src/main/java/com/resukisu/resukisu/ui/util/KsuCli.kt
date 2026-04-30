@@ -49,9 +49,13 @@ private fun trustedManagerSignatures(): Set<String> {
     val signatures = linkedSetOf(normalizeManagerSignature(OFFICIAL_MANAGER_SIGNATURE))
     val buildCertSize = BuildConfig.TRUSTED_MANAGER_CERT_SIZE.trim()
     val buildCertHash = BuildConfig.TRUSTED_MANAGER_CERT_HASH.trim()
+    Log.d(TAG, "[DEBUG] BuildConfig.TRUSTED_MANAGER_CERT_SIZE='$buildCertSize'")
+    Log.d(TAG, "[DEBUG] BuildConfig.TRUSTED_MANAGER_CERT_HASH='$buildCertHash'")
+    Log.d(TAG, "[DEBUG] Official signature='$OFFICIAL_MANAGER_SIGNATURE'")
     if (buildCertSize.isNotEmpty() && buildCertHash.isNotEmpty()) {
         signatures += normalizeManagerSignature("size: $buildCertSize, hash: $buildCertHash")
     }
+    Log.d(TAG, "[DEBUG] Trusted signatures set: $signatures")
     return signatures
 }
 
@@ -144,7 +148,14 @@ suspend fun isOfficialSignature(): Boolean = withContext(Dispatchers.IO) {
     val out = shell.newJob()
         .add("${getKsuDaemonPath()} debug get-sign ${ksuApp.packageResourcePath}")
         .to(ArrayList<String>(), null).exec().out
-    trustedManagerSignatures().contains(normalizeManagerSignature(out.firstOrNull().orEmpty()))
+    val rawSignature = out.firstOrNull().orEmpty()
+    Log.d(TAG, "[DEBUG] ksud debug get-sign raw output='$rawSignature'")
+    val normalized = normalizeManagerSignature(rawSignature)
+    Log.d(TAG, "[DEBUG] Normalized signature='$normalized'")
+    val trustedSigs = trustedManagerSignatures()
+    val isOfficial = trustedSigs.contains(normalized)
+    Log.d(TAG, "[DEBUG] isOfficialSignature result: $isOfficial (trusted=$trustedSigs)")
+    isOfficial
 }
 
 suspend fun getFeatureStatus(feature: String): String = withContext(Dispatchers.IO) {

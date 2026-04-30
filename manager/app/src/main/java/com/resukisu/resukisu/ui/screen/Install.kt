@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -270,7 +271,9 @@ fun InstallScreen(
         currentKmi.takeIf { it.isNotBlank() }
     }) { kmi ->
         kmi?.let {
+            Log.d("Install", "[DEBUG] KMI selected: $it")
             lkmSelection = LkmSelection.KmiString(it)
+            Log.d("Install", "[DEBUG] lkmSelection updated to: $lkmSelection")
             onInstall()
         }
     }
@@ -279,9 +282,12 @@ fun InstallScreen(
         // sakisu: always force the KMI selection dialog on GKI installs (instead of
         // only when getCurrentKmi() returns blank). Vendor-patched kernels (e.g. vivo)
         // need the matching `_vivo` KMI variant, which the user must pick manually.
+        Log.d("Install", "[DEBUG] onClickNext: isGKI=$isGKI, lkmSelection=$lkmSelection, installMethod=$installMethod")
         if (isGKI && lkmSelection == LkmSelection.KmiNone && installMethod !is InstallMethod.HorizonKernel) {
+            Log.d("Install", "[DEBUG] Showing KMI dialog")
             selectKmiDialog.show()
         } else {
+            Log.d("Install", "[DEBUG] Proceeding with install")
             onInstall()
         }
     }
@@ -1116,8 +1122,10 @@ fun rememberSelectKmiDialog(preferredKmi: String? = null, onSelected: (String?) 
             )
         ) {
             ListDialog(state = rememberUseCaseState(visible = true, onFinishedRequest = {
+                Log.d("Install", "[DEBUG] KMI dialog onFinishedRequest called, selection=$selection")
                 onSelected(selection)
             }, onCloseRequest = {
+                Log.d("Install", "[DEBUG] KMI dialog onCloseRequest called")
                 dismiss()
             }), header = Header.Default(
                 title = stringResource(R.string.select_kmi),
@@ -1125,6 +1133,7 @@ fun rememberSelectKmiDialog(preferredKmi: String? = null, onSelected: (String?) 
                 showRadioButtons = true,
                 options = options,
             ) { _, option ->
+                Log.d("Install", "[DEBUG] KMI dialog item selected: ${option.titleText}")
                 selection = option.titleText
                 onSelected(selection)
                 dismiss()
