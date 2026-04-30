@@ -315,7 +315,7 @@ void do_track_throne(void *data)
     for (;;) {
         struct uid_data *data = NULL;
         ssize_t count = ksu_kernel_read_compat(fp, &chr, sizeof(chr), &pos);
-        const char *delim = " ";
+        const char *delim = " \t";
         char *package = NULL;
         char *tmp = NULL;
         char *uid = NULL;
@@ -349,11 +349,20 @@ void do_track_throne(void *data)
             continue;
         }
 
+        uid = strim(uid);
         if (kstrtou32(uid, 10, &res)) {
-            pr_warn("update_uid: skip invalid uid in packages.list\n");
-            kfree(data);
-            line_start = pos;
-            continue;
+            char uid_prefix[16] = { 0 };
+            size_t i = 0;
+            while (uid[i] >= '0' && uid[i] <= '9' && i < sizeof(uid_prefix) - 1) {
+                uid_prefix[i] = uid[i];
+                i++;
+            }
+            if (i == 0 || kstrtou32(uid_prefix, 10, &res)) {
+                pr_warn("update_uid: skip invalid uid in packages.list\n");
+                kfree(data);
+                line_start = pos;
+                continue;
+            }
         }
         data->uid = res;
         strncpy(data->package, package, KSU_MAX_PACKAGE_NAME);
