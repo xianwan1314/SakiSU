@@ -179,31 +179,47 @@ sscanf(buf, "%255s %u", data->package, &res)  // 自动跳过多个空白字符
 
 ## 已知问题与排查
 
-### 问题 #1: "非官方管理器"警告持续显示
+### 问题 #1: Release 版本权限获取失败（关键发现！）
+
+**表现**: 
+- ✅ Debug APK 可以获得权限，LKM 工作
+- ❌ Release APK 无法获得权限
+
+**根本原因** (已确认):
+内核中硬编码的签名验证与 release 版本不匹配
+- Debug APK 文件大小: 0x377 (887 字节) → **精确匹配** `EXPECTED_SIZE_RESUKISU`
+- Release APK 文件大小: ≠ 0x377 → **不匹配** → 拒绝权限
+
+**核心代码位置**:
+- 内核硬编码签名: `kernel/manager/manager_sign.h` (第24行)
+- 签名验证: `kernel/manager/apk_sign.c:apk_sign_keys[]`
+
+**解决方案**:
+1. 获取 release APK 签名:
+   ```bash
+   adb shell ksud debug get-sign /path/to/release.apk
+   # 输出: size: 0xXXX, hash: abcd1234...
+   ```
+2. 将签名添加到内核硬编码列表 (`manager_sign.h`)
+3. 重新编译内核
+
+**详细方案**: 见 DEBUG_SIGNATURE_ISSUE.md
+
+### 问题 #2: "非官方管理器"警告持续显示
 
 **表现**: HomePage仍显示红色警告卡"非官方管理器"  
-**预期**: 应不显示（c5736b04已修复）  
+**根本原因**: BuildConfig 证书字段未注入
+- gradle.properties 中 TRUSTED_MANAGER_CERT_* 为空
+- build-manager.yml 的证书导出可能未正确执行或写入位置错误
+- 即使在 CI 构建时生成，本地 gradle.properties 仍为空
 
-**可能原因**:
-- [ ] BuildConfig.TRUSTED_MANAGER_CERT_* 未注入到APK
-- [ ] gradle.properties 中证书字段为空
-- [ ] ksud debug get-sign 返回格式与预期不符
-- [ ] 签名规范化函数有逻辑错误
+**依赖于**: 问题 #1 的解决
+- 如果 release 签名已添加到内核列表，可用方案 A
+- 长期方案: 修复 gradle.properties 证书注入，使用方案 B
 
-**排查方法**:
-```bash
-# 查看gradle.properties
-grep TRUSTED_MANAGER_CERT manager/gradle.properties
-
-# 运行logcat过滤
-adb logcat -c && sleep 1 && adb logcat | grep "DEBUG"
-```
-
-### 问题 #2: Vivo KMI对话框反复弹出
+### 问题 #3: Vivo KMI对话框反复弹出
 
 **表现**: 选择KMI项后，对话框关闭但随即重新弹出  
-**预期**: 选择后进入下一步安装流程
-
 **可能原因**:
 - [ ] `onFinishedRequest`和`selection lambda`都被执行，导致双重调用
 - [ ] `lkmSelection`状态在重新组合时丢失
@@ -221,7 +237,31 @@ adb logcat | grep -E "KMI dialog|lkmSelection|onClickNext"
 
 ---
 
-## 架构概览
+## 关键发现 (2026-05-01)
+
+### Debug vs Release 签名验证不匹配
+
+**问题**: Release APK无法获得权限，Debug APK可以  
+
+**诊断**: 通过代码审查发现：
+1. 内核硬编码了官方签名列表 (`kernel/manager/manager_sign.h`)
+2. Debug APK 大小恰好是 `EXPECTED_SIZE_RESUKISU = 0x377`
+3. Release APK 大小不同（minify导致），不匹配硬编码值
+4. BuildConfig 中的 TRUSTED_MANAGER_CERT_* 字段也未被正确注入
+
+**验证步骤**:
+```
+1. kernel/manager/apk_sign.c 行33: apk_sign_keys[] 数组
+2. kernel/manager/manager_sign.h 行24: EXPECTED_SIZE_RESUKISU = 0x377
+3. manager/gradle.properties: 完全缺少 TRUSTED_MANAGER_CERT_* 字段
+```
+
+**修复策略** (优先级):
+- 🔴 **P0** - 添加 Release 签名到内核硬编码列表
+- 🟡 **P1** - 修复 gradle.properties 证书注入机制
+- 🟢 **P2** - 完成 KMI 对话框重复弹出诊断
+
+---
 
 ### 包列表解析流程
 
