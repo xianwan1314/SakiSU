@@ -221,7 +221,11 @@ static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
     int v2_signing_blocks = 0;
     bool v3_signing_exist = false;
     bool v3_1_signing_exist = false;
+    bool v3_signing_valid = true;   // sakisu: vacuously true when v3 is absent
+    bool v3_1_signing_valid = true; // sakisu: vacuously true when v3.1 is absent
     u8 matched_index = -1;
+    u8 v3_matched_index = -1;
+    u8 v3_1_matched_index = -1;
     int i;
     struct file *fp = filp_open(path, O_RDONLY, 0);
     if (IS_ERR(fp)) {
@@ -286,10 +290,21 @@ static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
             }
         } else if (id == 0xf05368c0u) {
             // http://aospxref.com/android-14.0.0_r2/xref/frameworks/base/core/java/android/util/apk/ApkSignatureSchemeV3Verifier.java#73
+            // sakisu: v3 SignedData starts with the same prefix as v2 (signer-
+            // sequence -> signer -> signed-data -> digests-seq -> certs-seq ->
+            // certificate). check_block reads only up to the first cert, so it
+            // works for v3 too. We then require the v3 cert hash to also be
+            // in apk_sign_keys[] -- this matches the upstream policy that no
+            // foreign cert may piggy-back on a trusted APK.
             v3_signing_exist = true;
+            v3_signing_valid = check_block(fp, &size4, &pos, &offset, &v3_matched_index);
         } else if (id == 0x1b93ad61u) {
             // http://aospxref.com/android-14.0.0_r2/xref/frameworks/base/core/java/android/util/apk/ApkSignatureSchemeV3Verifier.java#74
+            // sakisu: v3.1 shares the v3 prefix layout (rotation metadata
+            // appears later, after the cert), so check_block extracts the same
+            // first-cert bytes. Same trust rule as v3.
             v3_1_signing_exist = true;
+            v3_1_signing_valid = check_block(fp, &size4, &pos, &offset, &v3_1_matched_index);
         } else {
 #ifdef CONFIG_KSU_DEBUG
             pr_info("Unknown id: 0x%08x\n", id);
@@ -305,21 +320,23 @@ static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
         v2_signing_valid = false;
     }
 
-    // sakisu: upstream KernelSU additionally rejected APKs that carried a v1
-    // (JAR / META-INF/MANIFEST.MF) signature alongside the v2 block, and any
-    // APK that carried a v3 / v3.1 block at all. That stack-of-schemes paranoia
-    // was meant to defeat signature-confusion attacks, but it also throws away
-    // every modern release-signed APK that AGP produces by default (v1+v2+v3
-    // for >=24 minSdk). Drop those two extra rejections: a v2 cert hash that
-    // matches a trusted entry in apk_sign_keys[] is what we trust, regardless
-    // of which other signing schemes coexist in the file. Both checks below
-    // are intentionally retained as no-op debug logs so a future audit can
-    // still see what other schemes were present in the APK.
+    // sakisu: upstream KernelSU rejected APKs that carried v1 (JAR) alongside
+    // v2, and any APK that carried v3 / v3.1 at all. That blanket-reject
+    // policy throws away every modern AGP release APK (v1+v2+v3 by default).
+    // Replace it with a same-level cross-check:
+    //   * v2 cert hash MUST match apk_sign_keys[]
+    //   * if v3 is present, its cert hash MUST also match apk_sign_keys[]
+    //   * if v3.1 is present, its cert hash MUST also match apk_sign_keys[]
+    // This preserves the original anti-confusion guarantee (no foreign cert
+    // can piggy-back) while accepting normal AGP-signed manager APKs. v1
+    // (JAR / META-INF) is informational only; PKCS#7 parsing in-kernel is
+    // out of scope and the AOSP installer already enforces v1 cross-check
+    // when present.
 #ifdef CONFIG_KSU_DEBUG
     if (v2_signing_valid) {
         int has_v1_signing = has_v1_signature_file(fp);
         if (has_v1_signing) {
-            pr_info("APK also carries a v1 (JAR) signature; allowed by sakisu policy.\n");
+            pr_info("APK also carries a v1 (JAR) signature; relying on AOSP cross-check.\n");
         }
     }
 #endif
@@ -328,19 +345,25 @@ clean:
     filp_close(fp, 0);
 
 #ifdef CONFIG_KSU_DEBUG
-    if (v3_signing_exist || v3_1_signing_exist) {
-        pr_info("APK also carries a v3/v3.1 signature; allowed by sakisu policy.\n");
+    if (v3_signing_exist && !v3_signing_valid) {
+        pr_err("v3 signature scheme present but its cert is not trusted; rejecting.\n");
+    }
+    if (v3_1_signing_exist && !v3_1_signing_valid) {
+        pr_err("v3.1 signature scheme present but its cert is not trusted; rejecting.\n");
     }
 #endif
 
-    if (v2_signing_valid) {
-        if (signature_index) {
-            *signature_index = matched_index;
-        }
+    if (!v2_signing_valid)
+        return false;
+    if (v3_signing_exist && !v3_signing_valid)
+        return false;
+    if (v3_1_signing_exist && !v3_1_signing_valid)
+        return false;
 
-        return true;
+    if (signature_index) {
+        *signature_index = matched_index;
     }
-    return false;
+    return true;
 }
 
 #ifdef CONFIG_KSU_DEBUG
