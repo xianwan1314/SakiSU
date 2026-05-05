@@ -6,7 +6,7 @@
 
 一个 [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-Ultra) 的下游分支,添加了一些有趣的变更，且更加稳定。
 
-[![最新发行](https://img.shields.io/github/v/release/SakiSU/SakiSU?label=Release&logo=github)](https://github.com/SakiSU/SakiSU/releases/latest)
+[![最新发行](https://img.shields.io/github/v/release/XingChenRS/SakiSU?label=Release&logo=github)](https://github.com/XingChenRS/SakiSU/releases/latest)
 [![频道](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/SakiSU)
 [![协议: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg?logo=gnu)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![GitHub 协议](https://img.shields.io/github/license/tiann/KernelSU?logo=gnu)](/LICENSE)

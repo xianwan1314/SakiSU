@@ -159,7 +159,7 @@ fun AboutScreen() {
                             icon = Icons.Rounded.Code,
                             title = stringResource(R.string.get_source_code),
                             description = stringResource(R.string.get_source_code_detail),
-                            onClick = { uriHandler.openUri("https://github.com/SakiSU/SakiSU") }
+                            onClick = { uriHandler.openUri("https://github.com/XingChenRS/SakiSU") }
                         )
                     }
                     item {
