@@ -90,13 +90,16 @@ android {
     // with "non-official signature" while the debug APK works (debug keystore
     // produces v1+v2 only). Force v1+v2-only signing on every signingConfig so
     // CI release builds carry the exact same scheme that the kernel accepts.
-    afterEvaluate {
-        signingConfigs.configureEach {
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = false
-            enableV4Signing = false
-        }
+    //
+    // NOTE: must be configured during the configuration phase, NOT inside
+    // afterEvaluate, otherwise AGP fails with
+    //   "It is too late to set enableV1Signing"
+    // because the variant API has already locked the value.
+    signingConfigs.configureEach {
+        enableV1Signing = true
+        enableV2Signing = true
+        enableV3Signing = false
+        enableV4Signing = false
     }
 
     packaging {
