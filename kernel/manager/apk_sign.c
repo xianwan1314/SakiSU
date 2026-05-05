@@ -305,23 +305,33 @@ static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
         v2_signing_valid = false;
     }
 
+    // sakisu: upstream KernelSU additionally rejected APKs that carried a v1
+    // (JAR / META-INF/MANIFEST.MF) signature alongside the v2 block, and any
+    // APK that carried a v3 / v3.1 block at all. That stack-of-schemes paranoia
+    // was meant to defeat signature-confusion attacks, but it also throws away
+    // every modern release-signed APK that AGP produces by default (v1+v2+v3
+    // for >=24 minSdk). Drop those two extra rejections: a v2 cert hash that
+    // matches a trusted entry in apk_sign_keys[] is what we trust, regardless
+    // of which other signing schemes coexist in the file. Both checks below
+    // are intentionally retained as no-op debug logs so a future audit can
+    // still see what other schemes were present in the APK.
+#ifdef CONFIG_KSU_DEBUG
     if (v2_signing_valid) {
         int has_v1_signing = has_v1_signature_file(fp);
         if (has_v1_signing) {
-            pr_err("Unexpected v1 signature scheme found!\n");
-            filp_close(fp, 0);
-            return false;
+            pr_info("APK also carries a v1 (JAR) signature; allowed by sakisu policy.\n");
         }
     }
+#endif
+
 clean:
     filp_close(fp, 0);
 
-    if (v3_signing_exist || v3_1_signing_exist) {
 #ifdef CONFIG_KSU_DEBUG
-        pr_err("Unexpected v3 signature scheme found!\n");
-#endif
-        return false;
+    if (v3_signing_exist || v3_1_signing_exist) {
+        pr_info("APK also carries a v3/v3.1 signature; allowed by sakisu policy.\n");
     }
+#endif
 
     if (v2_signing_valid) {
         if (signature_index) {
