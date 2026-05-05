@@ -425,9 +425,9 @@ fun InstallScreen(
                     SettingsBaseWidget(
                         title = "vivo修补",
                         description = if (enableVivoPatch) {
-                            "已启用：选择 vendor_boot 时执行 rmvr 清理；选择 init_boot/boot 时自动使用 _vivo KMI。"
+                            "已启用：vendor_boot 仅执行 rmvr 清理（不写入 LKM）；init_boot/boot 写入带 _vivo vermagic 的 LKM。"
                         } else {
-                            "关闭：不启用 rmvr，也不自动改用 _vivo KMI。"
+                            "关闭：走标准 ReSukiSU 流程，不做 rmvr，也不切 _vivo KMI。"
                         },
                         icon = Icons.Default.Security,
                         onClick = { enableVivoPatch = !enableVivoPatch },

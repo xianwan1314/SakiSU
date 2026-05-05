@@ -314,7 +314,19 @@ fun installBoot(
         }
     }
 
+    // sakisu vivo dual-path:
+    //   * vivo ON + vendor_boot  -> boot-patch-vivo  (rmvr only, NO LKM)
+    //   * vivo ON + init_boot/boot -> boot-patch with --kmi <ver>_vivo (vivo vermagic LKM)
+    //   * vivo OFF               -> boot-patch (standard ReSukiSU flow)
     val useVivoRmvr = vivoPatch && partition == "vendor_boot"
+    val useVivoLkm = vivoPatch && !useVivoRmvr
+    onStdout(
+        when {
+            useVivoRmvr -> "[manager] vivo mode: vendor_boot rmvr (no LKM injection)"
+            useVivoLkm -> "[manager] vivo mode: install vivo-vermagic LKM into ${partition ?: "init_boot"}"
+            else -> "[manager] standard ReSukiSU patch flow on ${partition ?: "auto"}"
+        }
+    )
     var cmd = if (useVivoRmvr) "boot-patch-vivo" else "boot-patch"
 
     cmd += if (bootFile == null) {
@@ -343,7 +355,9 @@ fun installBoot(
         }
 
         is LkmSelection.KmiString -> {
-            val selectedKmi = if (vivoPatch && !useVivoRmvr && !lkm.value.endsWith("_vivo")) {
+            // sakisu: when vivo LKM path is active and the chosen KMI doesn't already
+            // carry the _vivo suffix, append it so vermagic matches the vivo kernel.
+            val selectedKmi = if (useVivoLkm && !lkm.value.endsWith("_vivo")) {
                 "${lkm.value}_vivo"
             } else {
                 lkm.value
