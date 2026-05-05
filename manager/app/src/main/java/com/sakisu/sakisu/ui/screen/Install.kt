@@ -221,7 +221,17 @@ fun InstallScreen(
                 }
                 else -> {
                     val isOta = method is InstallMethod.DirectInstallToInactiveSlot
-                    val partitionSelection = partitionsState.getOrNull(partitionSelectionIndex)
+                    // sakisu: when the vivo patch toggle is on, the user is
+                    // explicitly asking for the vendor_boot rmvr flow. The
+                    // partition dropdown is only rendered for DirectInstall*,
+                    // so for SelectFile we must hard-code vendor_boot here
+                    // otherwise ksud will treat the picked image as boot/
+                    // init_boot and skip rmvr entirely.
+                    val partitionSelection = if (enableVivoPatch) {
+                        "vendor_boot"
+                    } else {
+                        partitionsState.getOrNull(partitionSelectionIndex)
+                    }
                     val flashIt = FlashIt.FlashBoot(
                         boot = if (method is InstallMethod.SelectFile) method.uri else null,
                         lkm = lkmSelection,
@@ -269,7 +279,9 @@ fun InstallScreen(
         value = getCurrentKmi()
     }
 
-    val preferVivoKmi = enableVivoPatch && partitionsState.getOrNull(partitionSelectionIndex) != "vendor_boot"
+    // sakisu: vivo patch == vendor_boot rmvr, full stop. The dropdown is not
+    // even visible for SelectFile, so we must NOT gate this on the dropdown.
+    val preferVivoKmi = false
 
     val selectKmiDialog = rememberSelectKmiDialog(preferredKmi = if (preferVivoKmi) {
         currentKmi.takeIf { it.isNotBlank() }?.let { base ->
@@ -285,10 +297,12 @@ fun InstallScreen(
     }
 
     val onClickNext = {
-        // sakisu: vivo vendor_boot rmvr path does not inject any LKM, so it does
-        // not need a KMI. Only force the KMI dialog for paths that actually flash a LKM.
-        val vendorBootRmvr = enableVivoPatch &&
-            partitionsState.getOrNull(partitionSelectionIndex) == "vendor_boot"
+        // sakisu: vivo patch toggle == vendor_boot rmvr. That flow injects no
+        // LKM, so it never needs a KMI. The previous gate read the partition
+        // dropdown, but the dropdown is only rendered for DirectInstall*, so
+        // SelectFile users always saw the KMI dialog AND ksud silently treated
+        // their vendor_boot.img as boot/init_boot.
+        val vendorBootRmvr = enableVivoPatch
         val needsKmi = isGKI &&
             lkmSelection == LkmSelection.KmiNone &&
             installMethod !is InstallMethod.HorizonKernel &&
