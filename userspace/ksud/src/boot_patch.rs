@@ -478,7 +478,47 @@ fn remove_vendor_modules(cpio: &mut Cpio, remove_module: &[String]) -> Result<()
         return Ok(());
     }
 
-    let module_roots = ["lib/modules", "lib/modules/6.1-gki"];
+    // sakisu: discover real module roots by walking the cpio. vivo vendor_boot
+    // images store module configs at:
+    //   lib/modules/{modules.load,modules.softdep,modules.load.recovery,...}
+    //   lib/modules/<gki-version>-gki/{modules.load,...}
+    // The previous hard-coded list ["lib/modules", "lib/modules/6.1-gki"]
+    // missed every device that wasn't android14-6.1 (Origin OS 4 phones with
+    // 5.10 / 5.15 / 6.6 kernels), which is why the rmvr step never seemed to
+    // run on most vivo devices. This mirrors the bash reference script:
+    //
+    //   GKI_VERSION=$(magiskboot cpio ramdisk.cpio "ls /lib/modules/" \
+    //                 | grep -o 'lib/modules/[0-9.]*-gki' \
+    //                 | sed 's|lib/modules/\(.*\)-gki|\1|' | head -n 1)
+    //
+    // but extended to handle multiple <ver>-gki dirs in case a device ships
+    // both. We also still process the bare "lib/modules" root so legacy
+    // (non-GKI-subdir) layouts keep working.
+    let mut module_roots: Vec<String> = vec!["lib/modules".to_string()];
+    {
+        let prefix = "lib/modules/";
+        for path in cpio.entries().keys() {
+            // path looks like e.g. "lib/modules/5.15.123-gki" or
+            // "lib/modules/5.15.123-gki/modules.load"; we only want the
+            // immediate <ver>-gki subdirectory (no further '/' after it).
+            let Some(rest) = path.strip_prefix(prefix) else {
+                continue;
+            };
+            let head = match rest.find('/') {
+                Some(idx) => &rest[..idx],
+                None => rest,
+            };
+            if head.is_empty() || !head.ends_with("-gki") {
+                continue;
+            }
+            let candidate = format!("{prefix}{head}");
+            if !module_roots.iter().any(|r| r == &candidate) {
+                println!("- Detected vendor module root: {candidate}");
+                module_roots.push(candidate);
+            }
+        }
+    }
+
     let index_files = [
         "modules.load",
         "modules.dep",
@@ -492,7 +532,7 @@ fn remove_vendor_modules(cpio: &mut Cpio, remove_module: &[String]) -> Result<()
             continue;
         }
 
-        for root in module_roots {
+        for root in &module_roots {
             let module_path = format!("{root}/{module_name}");
             if cpio.exists(&module_path) {
                 println!("- Removing vendor module {module_path}");
