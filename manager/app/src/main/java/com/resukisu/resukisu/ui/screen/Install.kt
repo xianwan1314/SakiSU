@@ -1125,7 +1125,14 @@ fun rememberSelectKmiDialog(preferredKmi: String? = null, onSelected: (String?) 
                 showRadioButtons = true,
                 options = options,
             ) { _, option ->
+                // sakisu: commit selection synchronously and close the dialog. Without this,
+                // sheets-compose-dialogs only fires onFinishedRequest when the user taps a
+                // (non-existent) explicit OK button — clicking outside / back triggers
+                // onCloseRequest only, leaving lkmSelection == KmiNone and causing the
+                // "select KMI again" popup loop on the next 'Next' click.
                 selection = option.titleText
+                onSelected(option.titleText)
+                dismiss()
             })
         }
     }

@@ -145,6 +145,16 @@ android {
         val isPrBuild = project.findProperty("IS_PR_BUILD")?.toString()?.toBoolean() ?: false
         buildConfigField("boolean", "IS_PR_BUILD", isPrBuild.toString())
 
+        // sakisu: CI same-batch trust — the kernel ko gets EXPECTED_PR_BUILD_SIZE/HASH
+        // baked in via ccflags; the manager APK needs the same values so its UI side
+        // "isOfficialSignature" check accepts the ephemeral pr-key.jks signature.
+        // When these env vars are absent (local Android Studio build), values are
+        // empty strings and the check just falls back to the literal release cert.
+        val expectedPrBuildSize = System.getenv("KSU_EXPECTED_PR_BUILD_SIZE").orEmpty()
+        val expectedPrBuildHash = System.getenv("KSU_EXPECTED_PR_BUILD_HASH").orEmpty()
+        buildConfigField("String", "EXPECTED_PR_BUILD_SIZE", "\"$expectedPrBuildSize\"")
+        buildConfigField("String", "EXPECTED_PR_BUILD_HASH", "\"$expectedPrBuildHash\"")
+
         externalNativeBuild {
             cmake {
                 arguments += "-DANDROID_STL=none"

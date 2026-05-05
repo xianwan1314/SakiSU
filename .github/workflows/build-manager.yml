@@ -226,6 +226,12 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Build APK
+        env:
+          # sakisu: pass the same per-CI-run pr-key cert size/hash to the manager build
+          # so its in-app isOfficialSignature() trusts the same ephemeral cert that the
+          # kernel ko was compiled to trust. Empty for local builds.
+          KSU_EXPECTED_PR_BUILD_SIZE: ${{ needs.generate-key.outputs.expected_size }}
+          KSU_EXPECTED_PR_BUILD_HASH: ${{ needs.generate-key.outputs.expected_hash }}
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             ./gradlew assemble${{ matrix.build_type }} -Pcommit=${{ steps.commit.outputs.COMMIT_SHA }} -PIS_PR_BUILD=true
