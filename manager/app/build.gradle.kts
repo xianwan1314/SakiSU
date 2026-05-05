@@ -83,6 +83,22 @@ android {
         prefab = true
     }
 
+    // sakisu: KernelSU kernel module rejects APKs that carry an APK Signature
+    // Scheme v3 / v3.1 block (kernel/manager/apk_sign.c: `if (v3_signing_exist
+    // || v3_1_signing_exist) return false;`). AGP enables v3+v4 by default for
+    // release builds, which causes the manager APK to be rejected by the kernel
+    // with "non-official signature" while the debug APK works (debug keystore
+    // produces v1+v2 only). Force v1+v2-only signing on every signingConfig so
+    // CI release builds carry the exact same scheme that the kernel accepts.
+    afterEvaluate {
+        signingConfigs.configureEach {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = false
+            enableV4Signing = false
+        }
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
