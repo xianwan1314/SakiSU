@@ -191,8 +191,17 @@ fun InstallScreen(
     }
 
     var partitionSelectionIndex by remember { mutableIntStateOf(0) }
-    var partitionsState by remember { mutableStateOf<List<String>>(emptyList()) }
     var hasCustomSelected by remember { mutableStateOf(false) }
+    // sakisu: keep partition discovery at the screen root so the value survives
+    // re-mounts of the AnimatedVisibility-wrapped dropdown (otherwise it would
+    // briefly flip back to emptyList() and the vivo vendor_boot rmvr branch
+    // could never be detected when the user clicks Next).
+    val partitionsState = produceState(initialValue = emptyList<String>()) {
+        value = getAvailablePartitions()
+    }.value
+    val defaultPartitionState = produceState(initialValue = "") {
+        value = getDefaultPartition()
+    }.value
     val navigator = LocalNavigator.current
 
     val onInstall = {
@@ -387,15 +396,9 @@ fun InstallScreen(
                             value = getSlotSuffix(isOta)
                         }.value
 
-                        val partitions = produceState(initialValue = emptyList()) {
-                            value = getAvailablePartitions()
-                        }.value
+                        val partitions = partitionsState
+                        val defaultPartition = defaultPartitionState
 
-                        val defaultPartition = produceState(initialValue = "") {
-                            value = getDefaultPartition()
-                        }.value
-
-                        partitionsState = partitions
                         val displayPartitions = partitions.map { name ->
                             if (defaultPartition == name) "$name (default)" else name
                         }
