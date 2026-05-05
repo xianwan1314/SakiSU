@@ -83,20 +83,25 @@ android {
         prefab = true
     }
 
-    // sakisu: KernelSU kernel module rejects APKs that carry an APK Signature
-    // Scheme v3 / v3.1 block (kernel/manager/apk_sign.c: `if (v3_signing_exist
-    // || v3_1_signing_exist) return false;`). AGP enables v3+v4 by default for
-    // release builds, which causes the manager APK to be rejected by the kernel
-    // with "non-official signature" while the debug APK works (debug keystore
-    // produces v1+v2 only). Force v1+v2-only signing on every signingConfig so
-    // CI release builds carry the exact same scheme that the kernel accepts.
+    // sakisu: kernel/manager/apk_sign.c performs an extremely strict APK
+    // signature scheme audit on the manager APK. It rejects:
+    //   * v3 / v3.1 signature blocks      ("Unexpected v3 signature scheme found")
+    //   * a v1 (JAR) signature alongside v2 ("Unexpected v1 signature scheme found")
+    // It only accepts a *bare* APK Signature Scheme v2 cert. AGP enables
+    // v1+v2+v3+v4 by default for release, which produces an APK that carries
+    // every scheme. The kernel happily computes the v2 cert hash, sees a
+    // matching SAKISU/PR_BUILD entry, and then throws the whole thing away
+    // because v1 (META-INF/MANIFEST.MF) and v3 are also present. The visible
+    // symptom is "non-official manager" + root grant failure on a release
+    // build that should match. Force v2-ONLY signing so the produced APK
+    // matches exactly what the kernel verifier accepts.
     //
     // NOTE: must be configured during the configuration phase, NOT inside
     // afterEvaluate, otherwise AGP fails with
     //   "It is too late to set enableV1Signing"
     // because the variant API has already locked the value.
     signingConfigs.configureEach {
-        enableV1Signing = true
+        enableV1Signing = false
         enableV2Signing = true
         enableV3Signing = false
         enableV4Signing = false
