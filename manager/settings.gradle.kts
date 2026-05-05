@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ReSukiSU"
+rootProject.name = "SakiSU"
 include(":app")

@@ -20,7 +20,7 @@ vivo / iQOO GKI 设备的特点：
 | ① 清理 vendor 限制 | `vendor_boot` | `ksud boot-patch-vivo` | **仅** 移除 `vr.ko`，**不**写入任何 KernelSU 制品 |
 | ② 注入 LKM | `init_boot` (或 `boot`) | `ksud boot-patch --kmi <ver>_vivo` | 注入 `kernelsu.ko` + `ksuinit`，使用 vivo vermagic 资源 |
 
-vivo 开关关闭时 ⇒ 完全等同于标准 ReSukiSU 流程，没有任何分支差异。
+vivo 开关关闭时 ⇒ 完全等同于标准 SakiSU 流程，没有任何分支差异。
 
 ## 2. 后端：`userspace/ksud/src/boot_patch.rs`
 
@@ -52,7 +52,7 @@ useVivoLkm  = vivoPatch && !useVivoRmvr
 
 - `[manager] vivo mode: vendor_boot rmvr (no LKM injection)`
 - `[manager] vivo mode: install vivo-vermagic LKM into <partition>`
-- `[manager] standard ReSukiSU patch flow on <partition>`
+- `[manager] standard SakiSU patch flow on <partition>`
 
 KMI 选择：仅在 `useVivoLkm` 为真且当前 KMI 字符串不带 `_vivo` 时，才追加 `_vivo` 后缀。
 vendor_boot rmvr 路径不会附加任何 `--kmi`，因为它根本不写 LKM。

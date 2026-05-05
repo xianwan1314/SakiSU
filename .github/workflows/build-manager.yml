@@ -73,9 +73,14 @@ jobs:
             -storepass "$STORE_PASS" \
             -file pr-cert.der
 
-          # Calculate size in hex
+          # Calculate size in hex.
+          # IMPORTANT: must use '0x%x' (no zero padding) so the string format
+          # exactly matches `ksud debug get-sign` output (Rust's {:#x}).
+          # Otherwise the manager's string-compare in isOfficialSignature() will
+          # never match (e.g. "0x0377" != "0x377"). The kernel side uses this
+          # value as a C numeric literal, so padding doesn't matter there.
           SIZE_DEC=$(stat -c%s pr-cert.der)
-          SIZE_HEX=$(printf '0x%04x' "$SIZE_DEC")
+          SIZE_HEX=$(printf '0x%x' "$SIZE_DEC")
           echo "expected_size=$SIZE_HEX" >> $GITHUB_OUTPUT
 
           # Calculate SHA256 hash
