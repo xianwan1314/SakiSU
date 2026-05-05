@@ -27,37 +27,6 @@ import java.util.Properties
  * @date 2023/1/1.
  */
 private const val TAG = "KsuCli"
-private const val OFFICIAL_MANAGER_SIGNATURE = "size: 0x377, hash: d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64"
-
-private fun normalizeManagerSignature(signature: String): String {
-    val trimmed = signature.trim()
-    if (trimmed.isEmpty()) return ""
-
-    val sizeMatch = Regex("size:\\s*0x([0-9a-fA-F]+)").find(trimmed)
-    val hashMatch = Regex("hash:\\s*([0-9a-fA-F]{64})").find(trimmed)
-    val size = sizeMatch?.groupValues?.getOrNull(1)?.toIntOrNull(16)
-    val hash = hashMatch?.groupValues?.getOrNull(1)?.lowercase()
-
-    return if (size != null && hash != null) {
-        "size:$size hash:$hash"
-    } else {
-        trimmed.lowercase().replace(" ", "")
-    }
-}
-
-private fun trustedManagerSignatures(): Set<String> {
-    val signatures = linkedSetOf(normalizeManagerSignature(OFFICIAL_MANAGER_SIGNATURE))
-    val buildCertSize = BuildConfig.TRUSTED_MANAGER_CERT_SIZE.trim()
-    val buildCertHash = BuildConfig.TRUSTED_MANAGER_CERT_HASH.trim()
-    Log.d(TAG, "[DEBUG] BuildConfig.TRUSTED_MANAGER_CERT_SIZE='$buildCertSize'")
-    Log.d(TAG, "[DEBUG] BuildConfig.TRUSTED_MANAGER_CERT_HASH='$buildCertHash'")
-    Log.d(TAG, "[DEBUG] Official signature='$OFFICIAL_MANAGER_SIGNATURE'")
-    if (buildCertSize.isNotEmpty() && buildCertHash.isNotEmpty()) {
-        signatures += normalizeManagerSignature("size: $buildCertSize, hash: $buildCertHash")
-    }
-    Log.d(TAG, "[DEBUG] Trusted signatures set: $signatures")
-    return signatures
-}
 
 private fun isVivoFamilyDevice(): Boolean {
     val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
@@ -148,14 +117,8 @@ suspend fun isOfficialSignature(): Boolean = withContext(Dispatchers.IO) {
     val out = shell.newJob()
         .add("${getKsuDaemonPath()} debug get-sign ${ksuApp.packageResourcePath}")
         .to(ArrayList<String>(), null).exec().out
-    val rawSignature = out.firstOrNull().orEmpty()
-    Log.d(TAG, "[DEBUG] ksud debug get-sign raw output='$rawSignature'")
-    val normalized = normalizeManagerSignature(rawSignature)
-    Log.d(TAG, "[DEBUG] Normalized signature='$normalized'")
-    val trustedSigs = trustedManagerSignatures()
-    val isOfficial = trustedSigs.contains(normalized)
-    Log.d(TAG, "[DEBUG] isOfficialSignature result: $isOfficial (trusted=$trustedSigs)")
-    isOfficial
+    out.firstOrNull()?.trim()
+        .orEmpty() == "size: 0x377, hash: d3469712b6214462764a1d8d3e5cbe1d6819a0b629791b9f4101867821f1df64"
 }
 
 suspend fun getFeatureStatus(feature: String): String = withContext(Dispatchers.IO) {
