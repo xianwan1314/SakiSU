@@ -332,18 +332,23 @@ fun installBoot(
         }
     }
 
-    // sakisu vivo dual-path: vendor_boot -> rmvr only; init_boot/boot -> _vivo LKM.
-    val useVivoRmvr = vivoPatch && partition == "vendor_boot"
-    val useVivoLkm = vivoPatch && !useVivoRmvr
+    // sakisu vivo compat mode: when the toggle is on we always invoke
+    // boot-patch-vivo, which lets ksud auto-detect from the cpio whether the
+    // image is vendor_boot (-> rmvr only) or init_boot (-> standard LKM).
+    // We must NOT gate this on partition == "vendor_boot" because the
+    // SelectFile path doesn't render the partition dropdown at all and would
+    // pass partition == null, falling back to plain boot-patch and silently
+    // skipping the vr.ko removal step.
+    val useVivoCompat = vivoPatch
     onStdout("[manager] received args: vivoPatch=$vivoPatch partition=${partition ?: "<null>"} ota=$ota lkm=${lkm.javaClass.simpleName}")
     onStdout(
-        when {
-            useVivoRmvr -> "[manager] vivo mode: vendor_boot rmvr (no LKM injection)"
-            useVivoLkm -> "[manager] vivo mode: install vivo-vermagic LKM into ${partition ?: "init_boot"}"
-            else -> "[manager] standard SakiSU patch flow on ${partition ?: "auto"}"
+        if (useVivoCompat) {
+            "[manager] vivo compat: ksud will auto-detect vendor_boot vs init_boot from cpio"
+        } else {
+            "[manager] standard SakiSU patch flow on ${partition ?: "auto"}"
         }
     )
-    var cmd = if (useVivoRmvr) "boot-patch-vivo" else "boot-patch"
+    var cmd = if (useVivoCompat) "boot-patch-vivo" else "boot-patch"
 
     cmd += if (bootFile == null) {
         // no boot.img, use -f to force install
@@ -371,8 +376,10 @@ fun installBoot(
         }
 
         is LkmSelection.KmiString -> {
-            // sakisu: vivo LKM path forces _vivo suffix to match vivo kernel vermagic.
-            val selectedKmi = if (useVivoLkm && !lkm.value.endsWith("_vivo")) {
+            // sakisu: vivo compat path forces _vivo suffix to match vivo kernel
+            // vermagic. Harmless for vendor_boot rmvr (ksud ignores the KMI
+            // when it auto-skips LKM injection).
+            val selectedKmi = if (useVivoCompat && !lkm.value.endsWith("_vivo")) {
                 "${lkm.value}_vivo"
             } else {
                 lkm.value
@@ -390,8 +397,8 @@ fun installBoot(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     cmd += " -o $downloadsDir"
 
-    if (useVivoRmvr && bootFile != null) {
-        cmd += " --out-name kernelsu_patched_rmvr_${System.currentTimeMillis()}.img"
+    if (useVivoCompat && bootFile != null) {
+        cmd += " --out-name kernelsu_patched_vivo_${System.currentTimeMillis()}.img"
     }
 
     partition?.let { part ->
