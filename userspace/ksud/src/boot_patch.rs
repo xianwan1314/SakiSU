@@ -550,9 +550,21 @@ fn remove_vendor_modules(cpio: &mut Cpio, remove_module: &[String]) -> Result<()
 }
 
 pub fn patch_vivo(mut args: BootPatchArgs) -> Result<()> {
-    // sakisu: vivo vendor_boot flow = remove vr.ko ONLY. The real init lives on
-    // init_boot, so we must NOT inject kernelsu.ko / ksuinit into vendor_boot.
-    println!("- Mode: vivo vendor_boot rmvr (no LKM injection)");
+    // sakisu: vivo "compat mode" - the user has indicated this is a vivo / iQOO
+    // device. We don't know yet whether the image they fed us is init_boot
+    // (needs LKM injection) or vendor_boot (needs vr.ko removal to avoid the
+    // post-boot crash loop). Both partitions are unpacked, the LKM injection
+    // path inside patch() is gated on cpio content, and the rmvr path simply
+    // adds vr.ko to remove_module which is a no-op if vr.ko isn't present.
+    //
+    // Net effect:
+    //   - init_boot.img -> normal LKM injection (no lib/modules/, vr.ko absent)
+    //   - vendor_boot.img -> auto no_install + vr.ko removed from modules.load*
+    //   - boot.img (legacy) -> normal LKM injection
+    //
+    // This means a vivo user can keep the toggle on all the time and just feed
+    // either image; ksud picks the right action.
+    println!("- Mode: vivo compat (auto-detect init_boot vs vendor_boot)");
 
     if !args
         .remove_module
@@ -561,13 +573,6 @@ pub fn patch_vivo(mut args: BootPatchArgs) -> Result<()> {
     {
         args.remove_module.push("vr.ko".to_string());
     }
-
-    #[cfg(target_os = "android")]
-    {
-        args.partition = Some("vendor_boot".to_string());
-    }
-
-    args.no_install = true;
 
     patch(args)
 }
@@ -585,7 +590,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             allow_shell,
             enable_adbd,
             adb_debug_prop,
-            no_install,
+            mut no_install,
             remove_module,
             #[cfg(target_os = "android")]
             ota,
@@ -748,6 +753,28 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                 } else {
                     (Cpio::new(), None)
                 };
+
+            // sakisu: auto-detect vendor_boot. If the ramdisk contains kernel
+            // modules under lib/modules/ (or the boot image itself uses the
+            // vendor_ramdisk format), treat this as vendor_boot: skip LKM
+            // injection so we don't burn KernelSU into the wrong partition.
+            // Standard init_boot/boot images have neither, so they fall through
+            // to the normal LKM injection path.
+            //
+            // This makes "vivo compat mode" partition-agnostic: the user can
+            // feed either init_boot.img or vendor_boot.img and the right thing
+            // happens. The remove_module pass below also turns into a no-op
+            // when there are no matching .ko files.
+            if !no_install {
+                let looks_like_vendor = cpio
+                    .entries()
+                    .keys()
+                    .any(|p| p.starts_with("lib/modules/") && p.ends_with(".ko"));
+                if looks_like_vendor {
+                    println!("- Auto-detected vendor_boot (lib/modules/*.ko present); skipping LKM injection");
+                    no_install = true;
+                }
+            }
 
             if !no_install {
                 let is_magisk_patched = cpio.is_magisk_patched();
