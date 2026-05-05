@@ -137,7 +137,16 @@ FILLDIR_RETURN_TYPE my_actor(MY_ACTOR_CTX_ARG, const char *name, int namelen, lo
     }
 
     // now put this on candidate_path
-    if (d_type == DT_REG && !strncmp(name, "base.apk", 8)) {
+    // sakisu fix: original `strncmp(name, "base.apk", 8)` was a prefix
+    // match, so it also accepted "base.apk.prof", "base.apk.idsig",
+    // "base.apk.gz" etc. that PMS drops next to the real APK.
+    // iterate_dir hands entries to us in inode order, so whichever of those
+    // sibling files came LAST won and overwrote candidate_path -- in vivo's
+    // case "base.apk.prof" was always the last entry for any user-installed
+    // app, so check_v2_signature ran against a profile blob (not a ZIP) and
+    // returned false. Result: the manager was never registered. Require an
+    // exact "base.apk" match to lock onto the real APK only.
+    if (d_type == DT_REG && namelen == 8 && !memcmp(name, "base.apk", 8)) {
         snprintf(candidate_path, DATA_PATH_LEN, "%s/%.*s", my_ctx->parent_dir, namelen, name);
     }
 
