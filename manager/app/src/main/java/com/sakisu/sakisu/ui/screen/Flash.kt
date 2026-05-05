@@ -369,6 +369,16 @@ fun FlashScreen(flashIt: FlashIt) {
         withContext(Dispatchers.IO) {
             setFlashingStatus(FlashingStatus.FLASHING)
 
+            // sakisu: dump the FlashIt parcel as it arrived at the Flash screen
+            // so we can tell whether the partition selection was already lost
+            // before installBoot() was even called.
+            if (flashIt is FlashIt.FlashBoot) {
+                val arrivalLine = "[manager] Flash route received: partition=${flashIt.partition ?: "<null>"} " +
+                    "vivoPatch=${flashIt.vivoPatch} ota=${flashIt.ota} lkm=${flashIt.lkm.javaClass.simpleName} " +
+                    "boot=${flashIt.boot ?: "<null>"}"
+                logContent.append(arrivalLine).append("\n")
+            }
+
             if (flashIt is FlashIt.FlashModules) {
                 try {
                     val currentUri = flashIt.uris[flashIt.currentIndex]

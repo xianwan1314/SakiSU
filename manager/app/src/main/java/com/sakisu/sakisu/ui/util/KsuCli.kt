@@ -335,6 +335,7 @@ fun installBoot(
     // sakisu vivo dual-path: vendor_boot -> rmvr only; init_boot/boot -> _vivo LKM.
     val useVivoRmvr = vivoPatch && partition == "vendor_boot"
     val useVivoLkm = vivoPatch && !useVivoRmvr
+    onStdout("[manager] received args: vivoPatch=$vivoPatch partition=${partition ?: "<null>"} ota=$ota lkm=${lkm.javaClass.simpleName}")
     onStdout(
         when {
             useVivoRmvr -> "[manager] vivo mode: vendor_boot rmvr (no LKM injection)"
