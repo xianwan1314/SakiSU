@@ -276,10 +276,15 @@ fun InstallScreen(
     }
 
     val onClickNext = {
-        // sakisu: always force the KMI selection dialog on GKI installs (instead of
-        // only when getCurrentKmi() returns blank). Vendor-patched kernels (e.g. vivo)
-        // need the matching `_vivo` KMI variant, which the user must pick manually.
-        if (isGKI && lkmSelection == LkmSelection.KmiNone && installMethod !is InstallMethod.HorizonKernel) {
+        // sakisu: vivo vendor_boot rmvr path does not inject any LKM, so it does
+        // not need a KMI. Only force the KMI dialog for paths that actually flash a LKM.
+        val vendorBootRmvr = enableVivoPatch &&
+            partitionsState.getOrNull(partitionSelectionIndex) == "vendor_boot"
+        val needsKmi = isGKI &&
+            lkmSelection == LkmSelection.KmiNone &&
+            installMethod !is InstallMethod.HorizonKernel &&
+            !vendorBootRmvr
+        if (needsKmi) {
             selectKmiDialog.show()
         } else {
             onInstall()

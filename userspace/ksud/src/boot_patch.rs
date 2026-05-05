@@ -510,20 +510,8 @@ fn remove_vendor_modules(cpio: &mut Cpio, remove_module: &[String]) -> Result<()
 }
 
 pub fn patch_vivo(mut args: BootPatchArgs) -> Result<()> {
-    // sakisu: vivo `vendor_boot` rmvr flow.
-    //
-    // What this does:
-    //   * Force the patch target to vendor_boot.
-    //   * Add `vr.ko` to the remove-module list (so it's stripped from the
-    //     vendor ramdisk and from modules.load/dep/softdep indexes).
-    //   * Set no_install=true so patch() will NOT inject kernelsu.ko / ksuinit
-    //     into vendor_boot. The real init lives on init_boot, so we must not
-    //     write KernelSU artefacts into vendor_boot.
-    //
-    // What this does NOT do:
-    //   * It does NOT add the KernelSU LKM. For init_boot KMI installs the
-    //     standard `boot-patch` command must be used (with --kmi <ver>_vivo so
-    //     vermagic matches).
+    // sakisu: vivo vendor_boot flow = remove vr.ko ONLY. The real init lives on
+    // init_boot, so we must NOT inject kernelsu.ko / ksuinit into vendor_boot.
     println!("- Mode: vivo vendor_boot rmvr (no LKM injection)");
 
     if !args
@@ -669,9 +657,8 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             let kernel = map_file(&kernel)?;
             patcher.replace_kernel(Box::new(Cursor::new(kernel)), false);
         } else {
-            // sakisu: when no_install is set (e.g. vivo vendor_boot rmvr-only flow),
-            // we MUST NOT inject kernelsu.ko / ksuinit. Skip loading them so we don't
-            // bail and don't print the misleading "Adding KernelSU LKM" message.
+            // sakisu: under no_install (e.g. vivo vendor_boot rmvr), do NOT load or
+            // inject kernelsu.ko / ksuinit. Skip the misleading "Adding KernelSU LKM".
             let kernelsu_ko_and_init: Option<(Box<dyn AsRef<[u8]>>, Box<dyn AsRef<[u8]>>)> = if no_install {
                 println!("- Skipping KernelSU LKM injection (no_install)");
                 None
@@ -681,7 +668,6 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                 let kernelsu_ko = if let Some(kmod) = kmod {
                     Box::new(map_file(&kmod)?) as Box<dyn AsRef<[u8]>>
                 } else {
-                    // If kmod is not specified, extract from assets
                     println!("- KMI: {kmi}");
                     let name = format!("{kmi}_kernelsu.ko");
                     assets::get_asset(&name)?
