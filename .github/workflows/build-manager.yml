@@ -38,37 +38,58 @@ jobs:
       keystore_password: ${{ steps.gen.outputs.keystore_password }}
       key_password: ${{ steps.gen.outputs.key_password }}
     steps:
-      # sakisu: removed `if: github.event_name == 'pull_request'` so that fork builds
-      # without PROD_KEYSTORE secrets also get a self-consistent ephemeral key
-      # (cert hash injected into kernelsu.ko via KSU_EXPECTED_PR_BUILD_*).
-      - name: Generate temporary keystore
+      # sakisu: prefer long-lived KEYSTORE secret if present, fall back to
+      # ephemeral. Long-lived keystore lets users upgrade the manager APK
+      # without uninstalling first (Android requires same signing key for
+      # in-place updates). To enable: set repo secrets KEYSTORE (base64 of
+      # .jks), KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD. Without them the
+      # ephemeral path below kicks in and produces a self-consistent build
+      # that still works (just not upgrade-compatible across builds).
+      - name: Materialize keystore (prod or ephemeral)
         id: gen
+        env:
+          PROD_KEYSTORE: ${{ secrets.KEYSTORE }}
+          PROD_STORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          PROD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          PROD_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
-          KEYSTORE_PASSWORD=$(openssl rand -hex 32)
-          KEY_PASSWORD=$(openssl rand -hex 32)
-          echo "keystore_password=$KEYSTORE_PASSWORD" >> $GITHUB_OUTPUT
-          echo "key_password=$KEY_PASSWORD" >> $GITHUB_OUTPUT
+          if [ -n "$PROD_KEYSTORE" ] && [ -n "$PROD_STORE_PASS" ] && [ -n "$PROD_KEY_ALIAS" ] && [ -n "$PROD_KEY_PASS" ]; then
+            echo "::notice::Using long-lived production keystore from secrets"
+            echo "$PROD_KEYSTORE" | base64 -d > pr-key.jks
+            echo "keystore_password=$PROD_STORE_PASS" >> $GITHUB_OUTPUT
+            echo "key_password=$PROD_KEY_PASS" >> $GITHUB_OUTPUT
+            echo "key_alias=$PROD_KEY_ALIAS" >> $GITHUB_OUTPUT
+            echo "keystore=$PROD_KEYSTORE" >> $GITHUB_OUTPUT
+          else
+            echo "::notice::No KEYSTORE secret found, generating ephemeral key (manager will require uninstall before upgrade)"
+            KEYSTORE_PASSWORD=$(openssl rand -hex 32)
+            KEY_PASSWORD=$(openssl rand -hex 32)
+            echo "keystore_password=$KEYSTORE_PASSWORD" >> $GITHUB_OUTPUT
+            echo "key_password=$KEY_PASSWORD" >> $GITHUB_OUTPUT
+            echo "key_alias=pr-key" >> $GITHUB_OUTPUT
 
-          keytool -genkeypair \
-            -alias pr-key \
-            -keyalg RSA -keysize 2048 \
-            -validity 1 \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -keypass "$KEY_PASSWORD" \
-            -dname "CN=KernelSU PR Build" \
-            -storetype JKS \
-            -keystore pr-key.jks
+            keytool -genkeypair \
+              -alias pr-key \
+              -keyalg RSA -keysize 2048 \
+              -validity 1 \
+              -storepass "$KEYSTORE_PASSWORD" \
+              -keypass "$KEY_PASSWORD" \
+              -dname "CN=KernelSU PR Build" \
+              -storetype JKS \
+              -keystore pr-key.jks
 
-          echo "keystore=$(base64 -w 0 pr-key.jks)" >> $GITHUB_OUTPUT
+            echo "keystore=$(base64 -w 0 pr-key.jks)" >> $GITHUB_OUTPUT
+          fi
 
       - name: Extract certificate hash and size
         id: extract
         env:
           STORE_PASS: ${{ steps.gen.outputs.keystore_password }}
+          KEY_ALIAS: ${{ steps.gen.outputs.key_alias }}
         run: |
           # Export DER certificate
           keytool -exportcert \
-            -alias pr-key \
+            -alias "$KEY_ALIAS" \
             -keystore pr-key.jks \
             -storepass "$STORE_PASS" \
             -file pr-cert.der
