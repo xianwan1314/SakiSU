@@ -19,7 +19,6 @@ on:
         required: false
         default: ''
         type: string
-  workflow_dispatch:
 
 jobs:
   build-lkm-vivo:

@@ -64,6 +64,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,6 +100,7 @@ import com.sakisu.sakisu.ui.theme.getCardElevation
 import com.sakisu.sakisu.ui.theme.haze
 import com.sakisu.sakisu.ui.theme.hazeSource
 import com.sakisu.sakisu.ui.util.LkmSelection
+import com.sakisu.sakisu.ui.util.classifyBootImage
 import com.sakisu.sakisu.ui.util.getAvailablePartitions
 import com.sakisu.sakisu.ui.util.getCurrentKmi
 import com.sakisu.sakisu.ui.util.getDefaultPartition
@@ -106,6 +108,7 @@ import com.sakisu.sakisu.ui.util.getSlotSuffix
 import com.sakisu.sakisu.ui.util.getSupportedKmis
 import com.sakisu.sakisu.ui.util.isAbDevice
 import com.sakisu.sakisu.ui.util.rootAvailable
+import kotlinx.coroutines.launch
 import zako.zako.zako.zakoui.screen.kernelFlash.component.SlotSelectionDialog
 
 /**
@@ -132,6 +135,8 @@ fun InstallScreen(
     var showSlotSelectionDialog by remember { mutableStateOf(false) }
     var showKpmPatchDialog by remember { mutableStateOf(false) }
     var tempKernelUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedBootImageKind by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
     var enableVivoPatch by remember {
         mutableStateOf(
             Build.MANUFACTURER.orEmpty().contains("vivo", ignoreCase = true) ||
@@ -294,20 +299,29 @@ fun InstallScreen(
         }
     }
 
-    val onClickNext = {
-        // sakisu: We can't know up-front whether the user's selected image is
-        // init_boot (needs a KMI for LKM injection) or vendor_boot (rmvr only,
-        // no KMI needed). Asking for the KMI unconditionally is the safe
-        // choice -- if ksud later auto-detects vendor_boot from the cpio it
-        // simply ignores the KMI value. Skipping the dialog here would break
-        // the init_boot LKM-injection flow on vivo devices.
+    val continueInstall = {
+        val selectedPartition = partitionsState.getOrNull(partitionSelectionIndex)
+        val isVivoVendorBootRmvr = enableVivoPatch &&
+            (selectedBootImageKind == "vendor_boot" || selectedPartition == "vendor_boot")
         val needsKmi = isGKI &&
             lkmSelection == LkmSelection.KmiNone &&
-            installMethod !is InstallMethod.HorizonKernel
-        if (needsKmi) {
-            selectKmiDialog.show()
+            installMethod !is InstallMethod.HorizonKernel &&
+            !isVivoVendorBootRmvr
+        if (needsKmi) selectKmiDialog.show() else onInstall()
+    }
+
+    val onClickNext = {
+        val method = installMethod
+        if (enableVivoPatch &&
+            method is InstallMethod.SelectFile &&
+            selectedBootImageKind == null
+        ) {
+            coroutineScope.launch {
+                selectedBootImageKind = method.uri?.let { classifyBootImage(it) } ?: "unknown"
+                continueInstall()
+            }
         } else {
-            onInstall()
+            continueInstall()
         }
     }
 
@@ -367,6 +381,7 @@ fun InstallScreen(
             SelectInstallMethod(
                 isGKI = isGKI,
                 onSelected = { method ->
+                    selectedBootImageKind = null
                     if (method is InstallMethod.HorizonKernel && method.uri != null) {
                         if (isAbDevice) {
                             tempKernelUri = method.uri
@@ -444,9 +459,9 @@ fun InstallScreen(
                     SettingsBaseWidget(
                         title = "vivo修补",
                         description = if (enableVivoPatch) {
-                            "已启用：vendor_boot 仅执行 rmvr 清理（不写入 LKM）；init_boot/boot 写入带 _vivo vermagic 的 LKM。"
+                            "已启用：去除vr或适配vivo特性。"
                         } else {
-                            "关闭：走标准 SakiSU 流程，不做 rmvr，也不切 _vivo KMI。"
+                            "关闭：走标准 SakiSU 流程，不做去除vr或vivo特性适配。"
                         },
                         icon = Icons.Default.Security,
                         onClick = { enableVivoPatch = !enableVivoPatch },

@@ -4,10 +4,10 @@
 
 **English** | [简体中文](./zh/README.md)
 
-A based-on [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-Ultra) fork, added some interesting changes, also make it more stable and build easily.
+A fork based on [`ReSukiSU/ReSukiSU`](https://github.com/ReSukiSU/ReSukiSU), carrying SakiSU-specific compatibility work while keeping the KernelSU/SukiSU lineage easy to build and test.
 
 [![Latest release](https://img.shields.io/github/v/release/XingChenRS/SakiSU?label=Release&logo=github)](https://github.com/XingChenRS/SakiSU/releases/latest)
-[![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/ReSukisu)
+[![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/SakiSU)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg?logo=gnu)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![GitHub License](https://img.shields.io/github/license/tiann/KernelSU?logo=gnu)](/LICENSE)
 
@@ -19,7 +19,8 @@ A based-on [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-
 3. [App Profile](https://kernelsu.org/guide/app-profile.html): Lock up the root power in a cage
 4. Support non-GKI and GKI 1.0
 5. KPM Support
-6. Tweaks to the manager theme and the built-in susfs management tool.
+6. vivo/iQOO compatibility mode: remove `vr.ko` from `vendor_boot` when needed and prefer `_vivo` LKM variants for boot/init_boot patching.
+7. Tweaks to the manager theme and the built-in susfs management tool.
 
 ## Compatibility Status
 
@@ -29,9 +30,11 @@ A based-on [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-
 
 - Currently, only `arm64-v8a`, `armeabi-v7a` and `X86_64`(some) are supported.
 
+- vivo/iQOO support is designed for GKI devices. The manager switch means "remove vr or adapt vivo-specific behavior": `vendor_boot` images take the rmvr-only path, while `init_boot`/boot images keep the normal LKM injection flow with `_vivo` KMI preference.
+
 ## Integration
 
-See the [documentation](https://SakiSU.github.io).
+See the documentation in this repository.
 
 ## Translation
 
@@ -77,7 +80,8 @@ If you need to submit a translation for the manager, please go to [Crowdin](http
 
 ## Credit
 
-- [SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra)： upstream
+- [ReSukiSU/ReSukiSU](https://github.com/ReSukiSU/ReSukiSU): upstream
+- [SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra): upstream lineage
 
 <details>
 <summary>SukiSU's credit</summary>

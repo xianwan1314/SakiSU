@@ -4,7 +4,7 @@
 
 [English](../README.md) | **简体中文** | [日本語](../ja/README.md) | [Türkçe](../tr/README.md) | [Русский](../ru/README.md)
 
-一个 [`SukiSU-Ultra/SukiSU-Ultra`](https://github.com/SukiSU-Ultra/SukiSU-Ultra) 的下游分支,添加了一些有趣的变更，且更加稳定。
+一个基于 [`ReSukiSU/ReSukiSU`](https://github.com/ReSukiSU/ReSukiSU) 的下游分支，保留 KernelSU/SukiSU 血统并加入 SakiSU 自己的兼容性改动。
 
 [![最新发行](https://img.shields.io/github/v/release/XingChenRS/SakiSU?label=Release&logo=github)](https://github.com/XingChenRS/SakiSU/releases/latest)
 [![频道](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/SakiSU)
@@ -19,7 +19,8 @@
 3. [App Profile](https://kernelsu.org/zh_CN/guide/app-profile.html): 把 Root 权限关进笼子里。
 4. 支持 non-GKI 与 GKI 1.0。
 5. KPM 支持
-6. 可调整管理器外观，可自定义 susfs 配置。
+6. vivo/iQOO 兼容模式：按需从 `vendor_boot` 移除 `vr.ko`，并在 boot/init_boot 修补时偏好 `_vivo` LKM 变体。
+7. 可调整管理器外观，可自定义 susfs 配置。
 
 ## 兼容状态
 
@@ -29,9 +30,11 @@
 
 - 目前支持架构 : `arm64-v8a`、`armeabi-v7a`、`X86_64`。
 
+- vivo/iQOO 支持面向 GKI 设备。管理器开关含义为“去除vr或适配vivo特性”：`vendor_boot` 镜像只执行 rmvr 清理，`init_boot`/boot 镜像继续走 LKM 注入并偏好 `_vivo` KMI。
+
 ## 集成
 
-请参考[文档](https://SakiSU.github.io)
+请参考本仓库文档。
 
 ## 参与翻译
 
@@ -77,7 +80,8 @@
 
 ## 鸣谢
 
-- [SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra)：上游
+- [ReSukiSU/ReSukiSU](https://github.com/ReSukiSU/ReSukiSU)：上游
+- [SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra)：上游血统
 
 <details>
 <summary>SukiSU 的鸣谢</summary>

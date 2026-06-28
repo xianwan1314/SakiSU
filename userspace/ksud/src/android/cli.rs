@@ -189,6 +189,12 @@ enum BootInfo {
     /// show current kmi version
     CurrentKmi,
 
+    /// classify a boot image as init_boot, vendor_boot, or unknown
+    ClassifyImage {
+        /// boot image path
+        boot: PathBuf,
+    },
+
     /// show supported kmi versions
     SupportedKmis,
 
@@ -820,6 +826,11 @@ pub fn run() -> Result<()> {
                 let kmi = crate::boot_patch::get_current_kmi()?;
                 println!("{kmi}");
                 // return here to avoid printing the error message
+                return Ok(());
+            }
+            BootInfo::ClassifyImage { boot } => {
+                let kind = crate::boot_patch::classify_boot_image(&boot)?;
+                println!("{kind}");
                 return Ok(());
             }
             BootInfo::SupportedKmis => {

@@ -345,6 +345,33 @@ fn parse_kmi_from_boot(image: &PathBuf) -> Result<String> {
     }
 }
 
+pub fn classify_boot_image(image: &PathBuf) -> Result<&'static str> {
+    let boot_image_data = map_file(image)?;
+    let boot_image = BootImage::parse(&boot_image_data)?;
+
+    let Some(ramdisk_image) = boot_image.get_blocks().get_ramdisk() else {
+        return Ok("unknown");
+    };
+
+    if ramdisk_image.is_vendor_ramdisk() {
+        return Ok("vendor_boot");
+    }
+
+    let mut ramdisk = Vec::<u8>::new();
+    ramdisk_image.dump(&mut ramdisk, false)?;
+    let cpio = Cpio::load_from_data(ramdisk.as_slice())?;
+    let looks_like_vendor = cpio
+        .entries()
+        .keys()
+        .any(|p| p.starts_with("lib/modules/") && p.ends_with(".ko"));
+
+    if looks_like_vendor {
+        Ok("vendor_boot")
+    } else {
+        Ok("init_boot")
+    }
+}
+
 #[derive(clap::Args, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct BootPatchArgs {
@@ -746,7 +773,9 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
                     .keys()
                     .any(|p| p.starts_with("lib/modules/") && p.ends_with(".ko"));
                 if looks_like_vendor {
-                    println!("- Auto-detected vendor_boot (lib/modules/*.ko present); skipping LKM injection");
+                    println!(
+                        "- Auto-detected vendor_boot (lib/modules/*.ko present); skipping LKM injection"
+                    );
                     no_install = true;
                 }
             }
@@ -754,28 +783,29 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             // sakisu: load LKM resources AFTER auto-detect to avoid pulling
             // kernelsu.ko + ksuinit (~3 MB) from assets just to throw them away
             // when we discover this is a vendor_boot image.
-            let kernelsu_ko_and_init: Option<(Box<dyn AsRef<[u8]>>, Box<dyn AsRef<[u8]>>)> = if no_install {
-                println!("- Skipping KernelSU LKM injection (no_install)");
-                None
-            } else {
-                println!("- Adding KernelSU LKM");
-
-                let kernelsu_ko = if let Some(kmod) = kmod {
-                    Box::new(map_file(&kmod)?) as Box<dyn AsRef<[u8]>>
+            let kernelsu_ko_and_init: Option<(Box<dyn AsRef<[u8]>>, Box<dyn AsRef<[u8]>>)> =
+                if no_install {
+                    println!("- Skipping KernelSU LKM injection (no_install)");
+                    None
                 } else {
-                    println!("- KMI: {kmi}");
-                    let name = format!("{kmi}_kernelsu.ko");
-                    assets::get_asset(&name)?
-                };
+                    println!("- Adding KernelSU LKM");
 
-                let ksu_init = if let Some(init) = init {
-                    Box::new(map_file(&init)?) as Box<dyn AsRef<[u8]>>
-                } else {
-                    assets::get_asset("ksuinit")?
-                };
+                    let kernelsu_ko = if let Some(kmod) = kmod {
+                        Box::new(map_file(&kmod)?) as Box<dyn AsRef<[u8]>>
+                    } else {
+                        println!("- KMI: {kmi}");
+                        let name = format!("{kmi}_kernelsu.ko");
+                        assets::get_asset(&name)?
+                    };
 
-                Some((kernelsu_ko, ksu_init))
-            };
+                    let ksu_init = if let Some(init) = init {
+                        Box::new(map_file(&init)?) as Box<dyn AsRef<[u8]>>
+                    } else {
+                        assets::get_asset("ksuinit")?
+                    };
+
+                    Some((kernelsu_ko, ksu_init))
+                };
 
             if !no_install {
                 let is_magisk_patched = cpio.is_magisk_patched();

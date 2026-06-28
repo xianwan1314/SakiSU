@@ -1,15 +1,11 @@
 name: Build SU
 on:
   push:
-    branches: [ "main", "ci" ]
+    branches: [ "main", "dev", "ci" ]
     paths:
       - '.github/workflows/build-su.yml'
       - 'userspace/su/**'
       - 'scripts/ksubot.py'
-  pull_request:
-    branches: [ "main" ]
-    paths:
-      - 'userspace/su/**'
 jobs:
   build-su:
     name: Build userspace su

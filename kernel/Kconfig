@@ -121,7 +121,7 @@ comment "------------------------WARNING-------------------------------"
 comment "SakiSU will check EVERY hooks in kernel compile process"
 comment "If anything mismatch with document, Kernel compile maybe FAILED!"
 comment "See document if you face any compile failed due to hook check"
-comment "Document: https://sakisu.github.io/guide/manual-integrate.html"
+comment "Document: https://github.com/XingChenRS/SakiSU/tree/dev/docs"
 comment "--------------------------------------------------------------"
 
 config KSU_MANUAL_HOOK_AUTO_SETUID_HOOK
