@@ -3,7 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::{
     fs::{File, OpenOptions},
     io::{BufReader, Cursor, Read, Seek, SeekFrom},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use android_bootimg::{
@@ -16,6 +16,9 @@ use memmap2::{Mmap, MmapOptions};
 use regex_lite::Regex;
 
 use crate::assets;
+
+type EmbeddedAsset = Box<dyn AsRef<[u8]>>;
+type KernelSuPayload = (EmbeddedAsset, EmbeddedAsset);
 
 #[cfg(target_os = "android")]
 mod android {
@@ -360,10 +363,7 @@ pub fn classify_boot_image(image: &PathBuf) -> Result<&'static str> {
     let mut ramdisk = Vec::<u8>::new();
     ramdisk_image.dump(&mut ramdisk, false)?;
     let cpio = Cpio::load_from_data(ramdisk.as_slice())?;
-    let looks_like_vendor = cpio
-        .entries()
-        .keys()
-        .any(|p| p.starts_with("lib/modules/") && p.ends_with(".ko"));
+    let looks_like_vendor = cpio.entries().keys().any(|p| is_kernel_module_path(p));
 
     if looks_like_vendor {
         Ok("vendor_boot")
@@ -531,10 +531,7 @@ fn remove_vendor_modules(cpio: &mut Cpio, remove_module: &[String]) -> Result<()
             let Some(rest) = path.strip_prefix(prefix) else {
                 continue;
             };
-            let head = match rest.find('/') {
-                Some(idx) => &rest[..idx],
-                None => rest,
-            };
+            let head = rest.find('/').map_or(rest, |idx| &rest[..idx]);
             if head.is_empty() || !head.ends_with("-gki") {
                 continue;
             }
@@ -768,10 +765,7 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             // happens. The remove_module pass below also turns into a no-op
             // when there are no matching .ko files.
             if !no_install {
-                let looks_like_vendor = cpio
-                    .entries()
-                    .keys()
-                    .any(|p| p.starts_with("lib/modules/") && p.ends_with(".ko"));
+                let looks_like_vendor = cpio.entries().keys().any(|p| is_kernel_module_path(p));
                 if looks_like_vendor {
                     println!(
                         "- Auto-detected vendor_boot (lib/modules/*.ko present); skipping LKM injection"
@@ -783,29 +777,28 @@ pub fn patch(args: BootPatchArgs) -> Result<()> {
             // sakisu: load LKM resources AFTER auto-detect to avoid pulling
             // kernelsu.ko + ksuinit (~3 MB) from assets just to throw them away
             // when we discover this is a vendor_boot image.
-            let kernelsu_ko_and_init: Option<(Box<dyn AsRef<[u8]>>, Box<dyn AsRef<[u8]>>)> =
-                if no_install {
-                    println!("- Skipping KernelSU LKM injection (no_install)");
-                    None
+            let kernelsu_ko_and_init: Option<KernelSuPayload> = if no_install {
+                println!("- Skipping KernelSU LKM injection (no_install)");
+                None
+            } else {
+                println!("- Adding KernelSU LKM");
+
+                let kernelsu_ko = if let Some(kmod) = kmod {
+                    Box::new(map_file(&kmod)?) as Box<dyn AsRef<[u8]>>
                 } else {
-                    println!("- Adding KernelSU LKM");
-
-                    let kernelsu_ko = if let Some(kmod) = kmod {
-                        Box::new(map_file(&kmod)?) as Box<dyn AsRef<[u8]>>
-                    } else {
-                        println!("- KMI: {kmi}");
-                        let name = format!("{kmi}_kernelsu.ko");
-                        assets::get_asset(&name)?
-                    };
-
-                    let ksu_init = if let Some(init) = init {
-                        Box::new(map_file(&init)?) as Box<dyn AsRef<[u8]>>
-                    } else {
-                        assets::get_asset("ksuinit")?
-                    };
-
-                    Some((kernelsu_ko, ksu_init))
+                    println!("- KMI: {kmi}");
+                    let name = format!("{kmi}_kernelsu.ko");
+                    assets::get_asset(&name)?
                 };
+
+                let ksu_init = if let Some(init) = init {
+                    Box::new(map_file(&init)?) as Box<dyn AsRef<[u8]>>
+                } else {
+                    assets::get_asset("ksuinit")?
+                };
+
+                Some((kernelsu_ko, ksu_init))
+            };
 
             if !no_install {
                 let is_magisk_patched = cpio.is_magisk_patched();
@@ -1178,4 +1171,12 @@ fn map_file(file: &PathBuf) -> Result<Mmap> {
             .len(file.seek(SeekFrom::End(0))? as usize)
             .map(&file)?)
     }
+}
+
+fn is_kernel_module_path(path: &str) -> bool {
+    path.starts_with("lib/modules/")
+        && Path::new(path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("ko"))
 }

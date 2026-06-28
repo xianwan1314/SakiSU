@@ -221,7 +221,7 @@ static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
     int v2_signing_blocks = 0;
     bool v3_signing_exist = false;
     bool v3_1_signing_exist = false;
-    bool v3_signing_valid = true;   // sakisu: vacuously true when v3 is absent
+    bool v3_signing_valid = true; // sakisu: vacuously true when v3 is absent
     bool v3_1_signing_valid = true; // sakisu: vacuously true when v3.1 is absent
     u8 matched_index = -1;
     u8 v3_matched_index = -1;
