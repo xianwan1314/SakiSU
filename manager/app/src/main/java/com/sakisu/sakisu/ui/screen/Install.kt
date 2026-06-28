@@ -299,7 +299,7 @@ fun InstallScreen(
         }
     }
 
-    val continueInstall = {
+    val continueInstall: () -> Unit = {
         val selectedPartition = partitionsState.getOrNull(partitionSelectionIndex)
         val isVivoVendorBootRmvr = enableVivoPatch &&
             (selectedBootImageKind == "vendor_boot" || selectedPartition == "vendor_boot")
@@ -310,7 +310,7 @@ fun InstallScreen(
         if (needsKmi) selectKmiDialog.show() else onInstall()
     }
 
-    val onClickNext = {
+    val onClickNext: () -> Unit = {
         val method = installMethod
         if (enableVivoPatch &&
             method is InstallMethod.SelectFile &&
