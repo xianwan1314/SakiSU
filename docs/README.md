@@ -1,10 +1,10 @@
 # SakiSU
-<img align='right' src='SakiSU_blue.svg' width='220px' alt="SakiSU Icon">
 
+<img align="right" src="SakiSU_blue.svg" width="220px" alt="SakiSU Icon">
 
-**English** | [简体中文](./zh/README.md)
+**English** | [简体中文](./zh/README.md) | [vivo/iQOO guide](./vivo.md)
 
-A fork based on [`ReSukiSU/ReSukiSU`](https://github.com/ReSukiSU/ReSukiSU), carrying SakiSU-specific compatibility work while keeping the KernelSU/SukiSU lineage easy to build and test.
+SakiSU is a downstream fork based on [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU). It keeps the KernelSU/SukiSU lineage while carrying SakiSU-specific compatibility work, especially for vivo/iQOO devices.
 
 [![Latest release](https://img.shields.io/github/v/release/XingChenRS/SakiSU?label=Release&logo=github)](https://github.com/XingChenRS/SakiSU/releases/latest)
 [![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/SakiSU)
@@ -13,91 +13,54 @@ A fork based on [`ReSukiSU/ReSukiSU`](https://github.com/ReSukiSU/ReSukiSU), car
 
 ## Features
 
-1. Kernel-based `su` and root access management
-2. Module system based on [Magic Mount](https://github.com/5ec1cff/KernelSU)
-   > **Note:** SakiSU now delegates all module mounting to the installed *metamodule*; the core no longer handles mount operations.
-3. [App Profile](https://kernelsu.org/guide/app-profile.html): Lock up the root power in a cage
-4. Support non-GKI and GKI 1.0
-5. KPM Support
-6. vivo/iQOO compatibility mode: remove `vr.ko` from `vendor_boot` when needed and prefer `_vivo` LKM variants for boot/init_boot patching.
-7. Tweaks to the manager theme and the built-in susfs management tool.
+1. Kernel-based `su` and root access management.
+2. Module system based on [Magic Mount](https://github.com/5ec1cff/KernelSU).
+   > Note: module mounting is delegated to the installed metamodule.
+3. [App Profile](https://kernelsu.org/guide/app-profile.html).
+4. GKI 2.0 support, with inherited non-GKI and GKI 1.0 support paths.
+5. KPM support.
+6. vivo/iQOO compatibility mode: remove `vr.ko` from `vendor_boot` or use `_vivo` LKM variants for boot/init_boot patching.
 
-## Compatibility Status
+## vivo/iQOO Compatibility
 
-- SakiSU officially supports Android GKI 2.0 devices (kernel 5.10+).
+The manager switch is named **"去除vr或适配vivo特性"**. It intentionally covers two independent operations:
 
-- Older kernels (3.4+) are also compatible, but the kernel will have to be built manually.
+| Selected image | SakiSU behavior |
+|---|---|
+| `vendor_boot.img` | Detects vendor ramdisk content, removes `vr.ko` and its `modules.*` references, and skips KernelSU LKM injection. |
+| `init_boot.img` or boot ramdisk | Keeps the normal KernelSU LKM injection path and prefers a `_vivo` KMI/LKM variant. |
 
-- Currently, only `arm64-v8a`, `armeabi-v7a` and `X86_64`(some) are supported.
+See [vivo/iQOO guide](./vivo.md) for background, warnings, and step-by-step usage.
 
-- vivo/iQOO support is designed for GKI devices. The manager switch means "remove vr or adapt vivo-specific behavior": `vendor_boot` images take the rmvr-only path, while `init_boot`/boot images keep the normal LKM injection flow with `_vivo` KMI preference.
+## Compatibility
 
-## Integration
+- SakiSU is primarily aimed at Android GKI 2.0 devices with kernel 5.10+.
+- Older kernels may still work through inherited build paths, but they usually require manual kernel work.
+- Currently supported Android ABIs include `arm64-v8a`, `armeabi-v7a`, and partial `x86_64`.
+- vivo/iQOO support has been tested around the GKI era. Early 3.x/4.x anti-root implementations embedded in vendor kernels are outside SakiSU's current scope.
 
-See the documentation in this repository.
+## Build and CI
 
-## Translation
+The `dev` branch is used for testing before mainline preparation. Push CI builds the manager, `ksud`, `ksuinit`, standard LKM assets, vivo LKM assets, and formatting checks.
 
-If you need to submit a translation for the manager, please go to [Crowdin](https://crowdin.com/project/SakiSU).
+Signing behavior follows the current code path. SakiSU does not reintroduce the old "force v2-only signing" assumption unless the verifier policy changes again.
 
-## KPM Support
+## Documentation
 
-- Based on KernelPatch, we removed features redundant with KSU and retained only KPM support.
-- Work in Progress: Expanding APatch compatibility by integrating additional functions to ensure compatibility across different implementations.
-
-**Open-source repository**: [https://github.com/ShirkNeko/SukiSU_KernelPatch_patch](https://github.com/ShirkNeko/SukiSU_KernelPatch_patch)
-
-**KPM template**: [https://github.com/udochina/KPM-Build-Anywhere](https://github.com/udochina/KPM-Build-Anywhere)
-
-> [!Note]
->
-> 1. Requires `CONFIG_KPM=y`
-> 2. Non-GKI devices requires `CONFIG_KALLSYMS=y` and `CONFIG_KALLSYMS_ALL=y`
-> 3. For kernels below `4.19`, backporting from `set_memory.h` from `4.19` is required.
-
-## Sponsor
-
-- [ShirkNeko](https://afdian.com/a/shirkneko) (maintainer of SukiSU)
-- [weishu](https://github.com/sponsors/tiann) (author of KernelSU)
-
-<details>
-<summary>ShirkNeko's sponsorship list</summary>
-
-- [Ktouls](https://github.com/Ktouls) Thanks so much for bringing me support.
-- [zaoqi123](https://github.com/zaoqi123) Thanks for the milk tea.
-- [wswzgdg](https://github.com/wswzgdg) Many thanks for supporting this project.
-- [yspbwx2010](https://github.com/yspbwx2010) Many thanks.
-- [DARKWWEE](https://github.com/DARKWWEE) 100 USDT
-- [Saksham Singla](https://github.com/TypeFlu) Provide and maintain the website
-- [OukaroMF](https://github.com/OukaroMF) Donation of website domain name
-</details>
+- [Chinese documentation](./zh/README.md)
+- [vivo/iQOO guide](./vivo.md)
+- [vivo implementation notes](../DEVLOG-VIVO.md)
 
 ## License
 
-- The file in the “kernel” directory is under [GPL-2.0-only](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html) license.
-- The images of the files `ic_launcher(?!.*alt.*).*` with anime character sticker are copyrighted by [怡子曰曰](https://space.bilibili.com/10545509), the Brand Intellectual Property in the images is owned by [明风 OuO](https://space.bilibili.com/274939213), and the vectorization is done by @MiRinChan. Before using these files, in addition to complying with [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.txt), you also need to comply with the authorization of the two authors to use these artistic contents.
-- Except for the files or directories mentioned above, all other parts are under [GPL-3.0 or later](https://www.gnu.org/licenses/gpl-3.0.html) license.
+- Files under `kernel` are licensed under [GPL-2.0-only](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).
+- Other parts are licensed under [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html), except where explicitly stated otherwise.
+- Launcher and anime-styled image assets keep their original authorizations and restrictions.
 
-## Credit
+## Credits
 
 - [ReSukiSU/ReSukiSU](https://github.com/ReSukiSU/ReSukiSU): upstream
 - [SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra): upstream lineage
-
-<details>
-<summary>SukiSU's credit</summary>
-
-- [KernelSU](https://github.com/tiann/KernelSU): upstream
-- [MKSU](https://github.com/5ec1cff/KernelSU): Magic Mount
-- [RKSU](https://github.com/rsuntk/KernelsU): support non-GKI
-- [susfs](https://gitlab.com/simonpunk/susfs4ksu): An addon root hiding kernel patches and userspace module for KernelSU.
-- [KernelPatch](https://github.com/bmax121/KernelPatch): KernelPatch is a key part of the APatch implementation of the kernel module
-</details>
-
-<details>
-<summary>KernelSU's credit</summary>
-
-- [Kernel-Assisted Superuser](https://git.zx2c4.com/kernel-assisted-superuser/about/): The KernelSU idea.
-- [Magisk](https://github.com/topjohnwu/Magisk): The powerful root tool.
-- [genuine](https://github.com/brevent/genuine/): APK v2 signature validation.
-- [Diamorphine](https://github.com/m0nad/Diamorphine): Some rootkit skills.
-</details>
+- [KernelSU](https://github.com/tiann/KernelSU): kernel-assisted root foundation
+- [Magic Mount](https://github.com/5ec1cff/KernelSU): module mounting lineage
+- [KernelPatch](https://github.com/bmax121/KernelPatch): KPM/APatch-related kernel module work

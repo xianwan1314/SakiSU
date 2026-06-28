@@ -1,10 +1,10 @@
 # SakiSU
-<img align='right' src='SakiSU_blue.svg' width='220px' alt="SakiSU Icon">
 
+<img align="right" src="SakiSU_blue.svg" width="220px" alt="SakiSU Icon">
 
-[English](../README.md) | **简体中文** | [日本語](../ja/README.md) | [Türkçe](../tr/README.md) | [Русский](../ru/README.md)
+[English](../README.md) | **简体中文** | [vivo/iQOO 适配教程](./vivo.md)
 
-一个基于 [`ReSukiSU/ReSukiSU`](https://github.com/ReSukiSU/ReSukiSU) 的下游分支，保留 KernelSU/SukiSU 血统并加入 SakiSU 自己的兼容性改动。
+SakiSU 是基于 [ReSukiSU](https://github.com/ReSukiSU/ReSukiSU) 的下游分支，保留 KernelSU/SukiSU 的主要能力，并加入面向 vivo/iQOO 设备的兼容性改动。
 
 [![最新发行](https://img.shields.io/github/v/release/XingChenRS/SakiSU?label=Release&logo=github)](https://github.com/XingChenRS/SakiSU/releases/latest)
 [![频道](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/SakiSU)
@@ -13,91 +13,60 @@
 
 ## 特性
 
-1. 基于内核的 `su` 和权限管理。
+1. 基于内核的 `su` 和 root 权限管理。
 2. 基于 [Magic Mount](https://github.com/5ec1cff/KernelSU) 的模块系统。
-   > **注意：** 模块挂载已由元模块接管，不再支持
-3. [App Profile](https://kernelsu.org/zh_CN/guide/app-profile.html): 把 Root 权限关进笼子里。
-4. 支持 non-GKI 与 GKI 1.0。
-5. KPM 支持
-6. vivo/iQOO 兼容模式：按需从 `vendor_boot` 移除 `vr.ko`，并在 boot/init_boot 修补时偏好 `_vivo` LKM 变体。
-7. 可调整管理器外观，可自定义 susfs 配置。
+   > 注意：模块挂载已由元模块接管。
+3. [App Profile](https://kernelsu.org/zh_CN/guide/app-profile.html)。
+4. 面向 GKI 2.0 设备，并保留 non-GKI 与 GKI 1.0 相关能力。
+5. KPM 支持。
+6. vivo/iQOO 兼容模式：一键移除 `vendor_boot` 中的 `vr.ko`，或在 boot/init_boot 修补时适配 vivo 官方内核 LKM。
+
+## vivo/iQOO 适配
+
+Manager 中的开关文案是 **“去除vr或适配vivo特性”**。它不是单纯的 rmvr 开关，而是按你选择的镜像自动走不同路径：
+
+| 选择的镜像 | SakiSU 行为 |
+|---|---|
+| `vendor_boot.img` | 自动识别 vendor ramdisk，移除 `vr.ko` 及 `modules.*` 引用，不注入 KernelSU LKM。 |
+| `init_boot.img` 或兼容 boot ramdisk | 正常注入 KernelSU LKM，并优先使用 `_vivo` KMI/LKM 变体。 |
+
+这两个操作互不依赖。你可以只修补 `vendor_boot` 去除 `vr.ko`，也可以只修补 `init_boot` 注入 KernelSU；如果使用 vivo 官方内核，通常需要选择带 `_vivo` 后缀的 KMI。
+
+完整背景、风险说明和操作教程见 [vivo/iQOO 适配教程](./vivo.md)。
 
 ## 兼容状态
 
-- SakiSU 官方支持 GKI 2.0 的设备（内核版本 5.10 以上）。
+- SakiSU 主要面向 Android GKI 2.0 设备（内核 5.10+）。
+- 旧内核路径继承自上游，但 3.x/4.x 时代的 vivo 内核内嵌反 root 不在 SakiSU 当前处理范围内。
+- 目前支持 `arm64-v8a`、`armeabi-v7a`，以及部分 `x86_64`。
+- vivo/iQOO 的 `vr.ko` 移除面向存在 `vendor_boot` 的 GKI 时代设备；`_vivo` LKM 适配面向 vivo 官方内核的 vermagic 机制。
 
-- 旧内核也是兼容的（最低 3.4+），不过需要自己编译内核。
+## 快速使用
 
-- 目前支持架构 : `arm64-v8a`、`armeabi-v7a`、`X86_64`。
+1. 解锁 bootloader，并备份原始 `boot`、`init_boot`、`vendor_boot` 等分区。
+2. 从当前系统包或设备中提取对应镜像，不要混用不同系统版本的镜像。
+3. 打开 SakiSU Manager，进入安装页，按需开启 vivo 修补。
+4. 修补 `vendor_boot.img` 时，正常情况下不会弹出 KMI 选择，输出镜像刷回 `vendor_boot`。
+5. 修补 `init_boot.img` 时，选择适配本机的 KMI；vivo 官方内核优先选择 `_vivo` 后缀。
 
-- vivo/iQOO 支持面向 GKI 设备。管理器开关含义为“去除vr或适配vivo特性”：`vendor_boot` 镜像只执行 rmvr 清理，`init_boot`/boot 镜像继续走 LKM 注入并偏好 `_vivo` KMI。
+详细步骤见 [vivo/iQOO 适配教程](./vivo.md)。
 
-## 集成
+## 构建与测试
 
-请参考本仓库文档。
+`dev` 分支用于 main 合入前测试。当前 CI 在 push 时验证 Manager APK、`ksud`、`ksuinit`、标准 LKM、vivo LKM、Rustfmt、Clippy 与 clang-format。
 
-## 参与翻译
-
-要将 SakiSU 翻译成您的语言，或完善现有的翻译，请使用 [Crowdin](https://crowdin.com/project/SakiSU).
-
-## KPM 支持
-
-- 基于 KernelPatch 开发，移除了与 KernelSU 重复的功能。
-- 正在进行（WIP）：通过集成附加功能来扩展 APatch 兼容性，以确保跨不同实现的兼容性。
-
-**开源仓库**: [https://github.com/ShirkNeko/SukiSU_KernelPatch_patch](https://github.com/ShirkNeko/SukiSU_KernelPatch_patch)
-
-**KPM 模板**: [https://github.com/udochina/KPM-Build-Anywhere](https://github.com/udochina/KPM-Build-Anywhere)
-
-> [!Note]
->
-> 1. 需要 `CONFIG_KPM=y`
-> 2. Non-GKI 设备需要 `CONFIG_KALLSYMS=y` and `CONFIG_KALLSYMS_ALL=y`
-> 3. 对于低于 `4.19` 的内核，需要从 `4.19` 的 `set_memory.h` 进行反向移植。
+签名逻辑按现有代码执行；除非内核侧校验策略再次变化，否则不回退到旧的强制 v2-only 假设。
 
 ## 许可证
 
-- 目录 `kernel` 下所有文件为 [GPL-2.0-only](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)。
-- 有动漫人物图片表情包的这些文件 `ic_launcher(?!.*alt.*).*` 的图像版权为[怡子曰曰](https://space.bilibili.com/10545509)所有，图像中的知识产权由[明风 OuO](https://space.bilibili.com/274939213)所有，矢量化由 @MiRinChan 完成，在使用这些文件之前，除了必须遵守 [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.txt) 以外，还需要遵守向前两者索要使用这些艺术内容的授权。
-- 除上述文件及目录的其他部分均为 [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html)。
-
-## 赞助
-
-- [ShirkNeko](https://afdian.com/a/shirkneko) (SukiSU 主要维护者)
-- [weishu](https://github.com/sponsors/tiann) (KernelSU 作者)
-
-<details>
-<summary>ShirkNeko 的赞助列表</summary>
-
-- [Ktouls](https://github.com/Ktouls) 非常感谢你给我带来的支持
-- [zaoqi123](https://github.com/zaoqi123) 请我喝奶茶也不错
-- [wswzgdg](https://github.com/wswzgdg) 非常感谢对此项目的支持
-- [yspbwx2010](https://github.com/yspbwx2010) 非常感谢
-- [DARKWWEE](https://github.com/DARKWWEE) 感谢老哥的 100 USDT
-- [Saksham Singla](https://github.com/TypeFlu) 网站的提供以及维护
-- [OukaroMF](https://github.com/OukaroMF) 网站域名捐赠
-</details>
+- `kernel` 目录下文件为 [GPL-2.0-only](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)。
+- 除特别声明外，其余部分为 [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html)。
+- 启动图标和动漫风格素材保留原作者授权与使用限制。
 
 ## 鸣谢
 
 - [ReSukiSU/ReSukiSU](https://github.com/ReSukiSU/ReSukiSU)：上游
 - [SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra)：上游血统
-
-<details>
-<summary>SukiSU 的鸣谢</summary>
-
-- [KernelSU](https://github.com/tiann/KernelSU): 上游
-- [MKSU](https://github.com/5ec1cff/KernelSU): 魔法坐骑支持
-- [RKSU](https://github.com/rsuntk/KernelsU): non-GKI 支持
-- [susfs](https://gitlab.com/simonpunk/susfs4ksu): 隐藏内核补丁以及用户空间模组的 KernelSU 附件
-- [KernelPatch](https://github.com/bmax121/KernelPatch): KernelPatch 是内核模块 APatch 实现的关键部分
-</details>
-
-<details>
-<summary>KernelSU 的鸣谢</summary>
-
-- [kernel-assisted-superuser](https://git.zx2c4.com/kernel-assisted-superuser/about/)：KernelSU 的灵感。
-- [Magisk](https://github.com/topjohnwu/Magisk)：强大的 root 工具箱。
-- [genuine](https://github.com/brevent/genuine/)：apk v2 签名验证。
-- [Diamorphine](https://github.com/m0nad/Diamorphine)：一些 rootkit 技巧。
-</details>
+- [KernelSU](https://github.com/tiann/KernelSU)：内核级 root 方案基础
+- [Magic Mount](https://github.com/5ec1cff/KernelSU)：模块挂载相关血统
+- [KernelPatch](https://github.com/bmax121/KernelPatch)：KPM/APatch 相关内核模块工作

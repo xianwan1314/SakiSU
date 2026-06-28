@@ -3,6 +3,9 @@
 > This file records the vivo/iQOO behavior that is implemented in code. It is
 > not a design wish list and should be kept in sync with `boot_patch.rs`,
 > `KsuCli.kt`, and `Install.kt`.
+>
+> User-facing background and usage live in `docs/zh/vivo.md` and
+> `docs/vivo.md`.
 
 ## Scope
 
