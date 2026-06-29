@@ -1,18 +1,64 @@
 name: Release
+
+permissions:
+  contents: write
+
 on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag, e.g. v1.2.3"
+        required: true
+        type: string
+      release_name:
+        description: "Release title, defaults to tag_name when empty"
+        required: false
+        default: ""
+        type: string
+      prerelease:
+        description: "Mark this release as a prerelease"
+        required: false
+        default: true
+        type: boolean
+      confirm_release:
+        description: "Confirm manual release"
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
 
 jobs:
   build-manager:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.confirm_release }}
     uses: ./.github/workflows/build-manager.yml
     secrets: inherit
   release:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.confirm_release }}
     needs:
       - build-manager
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ inputs.tag_name }}"
+            RELEASE_NAME="${{ inputs.release_name }}"
+            if [ -z "$RELEASE_NAME" ]; then
+              RELEASE_NAME="$TAG_NAME"
+            fi
+            echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+            echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+            echo "prerelease=${{ inputs.prerelease }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "release_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download artifacts
         uses: actions/download-artifact@v8
       - name: Rename ksud
@@ -62,6 +108,10 @@ jobs:
       - name: release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ${{ steps.meta.outputs.release_name }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          target_commitish: ${{ github.sha }}
           files: |
             manager/*.apk
             *-gradle-release/manager/app/build/outputs/apk/release/*.apk
