@@ -10,30 +10,109 @@ on:
   workflow_dispatch:
     inputs:
       expected_pr_build_size:
-        description: 'Second expected signature size (for PR builds)'
+        description: 'Second expected signature size (for PR builds, leave empty to auto-derive from repository secrets)'
         required: false
         default: ''
         type: string
       expected_pr_build_hash:
-        description: 'Second expected signature hash (for PR builds)'
+        description: 'Second expected signature hash (for PR builds, leave empty to auto-derive from repository secrets)'
         required: false
         default: ''
         type: string
   workflow_call:
     inputs:
       expected_pr_build_size:
-        description: 'Second expected signature size (for PR builds)'
+        description: 'Second expected signature size (for PR builds, leave empty to auto-derive from repository secrets)'
         required: false
         default: ''
         type: string
       expected_pr_build_hash:
-        description: 'Second expected signature hash (for PR builds)'
+        description: 'Second expected signature hash (for PR builds, leave empty to auto-derive from repository secrets)'
         required: false
         default: ''
         type: string
 
 jobs:
-  build-lkm-vivo:
+  resolve-signature:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    outputs:
+      expected_size: ${{ steps.resolve.outputs.expected_size }}
+      expected_hash: ${{ steps.resolve.outputs.expected_hash }}
+    steps:
+      - name: Resolve expected PR build signature
+        id: resolve
+        shell: bash
+        env:
+          MANUAL_SIZE: ${{ inputs.expected_pr_build_size }}
+          MANUAL_HASH: ${{ inputs.expected_pr_build_hash }}
+          PROD_KEYSTORE: ${{ secrets.KEYSTORE }}
+          PROD_STORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          PROD_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$MANUAL_SIZE" ] || [ -n "$MANUAL_HASH" ]; then
+            if [ -z "$MANUAL_SIZE" ] || [ -z "$MANUAL_HASH" ]; then
+              echo "ERROR: expected_pr_build_size and expected_pr_build_hash must both be set."
+              exit 1
+            fi
+            echo "::notice::Using manually supplied expected PR build signature."
+            echo "expected_size=$MANUAL_SIZE" >> "$GITHUB_OUTPUT"
+            echo "expected_hash=$MANUAL_HASH" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -n "$PROD_KEYSTORE" ] && [ -n "$PROD_STORE_PASS" ] && [ -n "$PROD_KEY_ALIAS" ]; then
+            echo "::notice::Using release keystore from repository secrets to derive expected PR build signature."
+            echo "$PROD_KEYSTORE" | base64 -d > release-key.jks
+
+            keytool -exportcert \
+              -alias "$PROD_KEY_ALIAS" \
+              -keystore release-key.jks \
+              -storepass "$PROD_STORE_PASS" \
+              -file release-cert.der
+
+            SIZE_DEC=$(stat -c%s release-cert.der)
+            SIZE_HEX=$(printf '0x%x' "$SIZE_DEC")
+            HASH=$(sha256sum release-cert.der | awk '{print $1}')
+
+            echo "expected_size=$SIZE_HEX" >> "$GITHUB_OUTPUT"
+            echo "expected_hash=$HASH" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::notice::No manual signature input or repository keystore secrets found; building without expected PR build signature."
+          echo "expected_size=" >> "$GITHUB_OUTPUT"
+          echo "expected_hash=" >> "$GITHUB_OUTPUT"
+
+  build-lkm-vivo-dispatch:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: resolve-signature
+    strategy:
+      fail-fast: false
+      matrix:
+        # Mirror build-lkm.yml matrix: every KMI gets a vivo variant.
+        # KMIs without device-tested vermagic use a generic template
+        # (see ddk-lkm.yml case statement).
+        kmi:
+          - android12-5.10
+          - android13-5.10
+          - android13-5.15
+          - android14-5.15
+          - android14-6.1
+          - android15-6.6
+          - android16-6.12
+    uses: ./.github/workflows/ddk-lkm.yml
+    with:
+      kmi: ${{ matrix.kmi }}
+      ddk_release: '20260313'
+      vivo: true
+      expected_pr_build_size: ${{ needs.resolve-signature.outputs.expected_size }}
+      expected_pr_build_hash: ${{ needs.resolve-signature.outputs.expected_hash }}
+
+  build-lkm-vivo-call:
+    if: ${{ github.event_name == 'workflow_call' }}
     strategy:
       fail-fast: false
       matrix:
